@@ -1,0 +1,122 @@
+{
+  "kind": "implementation_plan",
+  "version": "1.0",
+  "title": "Implement periodic refresh, file previews, and storage quota UI",
+  "requirements": [
+    {
+      "id": "REQ-1",
+      "summary": "Implement periodic polling mechanism that automatically refreshes the file list every 3-5 seconds using React Query with refetchInterval",
+      "acceptanceCriteria": [
+        "File list automatically refreshes every few seconds without manual user interaction",
+        "Polling can be paused when user is inactive to save resources",
+        "Loading states are handled gracefully without disrupting user experience"
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/hooks/useListFiles.ts",
+          "operation": "create",
+          "description": "Create a React Query hook that fetches the file list from the backend using listFiles() and configures refetchInterval to poll every 3-5 seconds. Include logic to pause polling when the document is hidden or user is inactive. Handle loading states gracefully to avoid UI disruption during background refreshes."
+        },
+        {
+          "path": "frontend/src/pages/Dashboard.tsx",
+          "operation": "modify",
+          "description": "Replace any existing file listing logic with the useListFiles hook to enable automatic periodic refresh. Display the file list with appropriate loading indicators that don't disrupt the user experience during background polling."
+        }
+      ]
+    },
+    {
+      "id": "REQ-4",
+      "summary": "Implement file preview functionality for TXT, images, videos, and PDF documents using browser-native rendering capabilities",
+      "acceptanceCriteria": [
+        "TXT files display content in a readable text viewer with syntax highlighting if applicable",
+        "Images render in an image viewer with zoom and pan controls",
+        "Videos play in a native HTML5 video player with standard controls",
+        "PDF documents render using browser's built-in PDF viewer or an embedded PDF renderer",
+        "Preview panel shows file type badge and fallback message for unsupported formats"
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/components/FilePreview.tsx",
+          "operation": "create",
+          "description": "Create a FilePreview component that accepts file metadata and renders appropriate preview based on file type. For text files (TXT), display content in a pre-formatted text viewer. For images (PNG, JPG, GIF, SVG), render using an img element with zoom/pan controls. For videos (MP4, WebM), use HTML5 video element with native controls. For PDFs, use an iframe or embed element to leverage browser's PDF renderer. Include a file type badge and fallback message for unsupported formats."
+        },
+        {
+          "path": "frontend/src/hooks/useDownloadFile.ts",
+          "operation": "create",
+          "description": "Create a React Query hook that downloads file chunks using downloadFileChunk() backend method, reassembles chunks into complete file data, and returns as a Blob or data URL suitable for preview rendering. Include error handling for failed chunk retrieval."
+        },
+        {
+          "path": "frontend/src/pages/Dashboard.tsx",
+          "operation": "modify",
+          "description": "Integrate FilePreview component into the dashboard UI. Add preview trigger functionality (e.g., click on file name or preview icon) that opens a modal or side panel showing the FilePreview component with the selected file."
+        }
+      ]
+    },
+    {
+      "id": "REQ-5",
+      "summary": "Add periodic polling to the admin dashboard activity feed that refreshes every 5-10 seconds to show recent file operations and user actions",
+      "acceptanceCriteria": [
+        "Admin activity feed automatically updates with latest system events",
+        "Activity entries show timestamp, user, action type, and affected file/resource",
+        "Polling interval is configurable and can be adjusted based on admin preferences"
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/hooks/useActivityFeed.ts",
+          "operation": "create",
+          "description": "Create a React Query hook that fetches recent activity data from the backend and configures refetchInterval to poll every 5-10 seconds. The hook should only be enabled when the current user has admin role. Include logic to pause polling when user is inactive or admin dashboard is not visible."
+        },
+        {
+          "path": "frontend/src/components/ActivityFeed.tsx",
+          "operation": "create",
+          "description": "Create an ActivityFeed component that displays recent file operations and user actions. Each activity entry should show timestamp, user name (fetched via getUserProfile), action type (upload, download, delete), and affected file name. Include loading states and empty state messaging."
+        },
+        {
+          "path": "frontend/src/pages/AdminDashboard.tsx",
+          "operation": "modify",
+          "description": "Integrate the ActivityFeed component into the admin dashboard layout. Add admin-only access guard using the authorization component to ensure only users with admin role can view the activity feed. Verify the component's usage instructions before implementing."
+        }
+      ]
+    },
+    {
+      "id": "REQ-6",
+      "summary": "Implement storage quota tracking frontend UI with visual indicators showing used vs. available storage",
+      "acceptanceCriteria": [
+        "Frontend displays storage usage as percentage with visual progress bar",
+        "Admin dashboard allows setting and modifying per-user storage limits"
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/hooks/useStorageQuota.ts",
+          "operation": "create",
+          "description": "Create a React Query hook that fetches the current user's storage quota using getStorageQuota() backend method. Configure the hook to refetch periodically or after file operations to keep quota information current."
+        },
+        {
+          "path": "frontend/src/components/StorageQuotaIndicator.tsx",
+          "operation": "create",
+          "description": "Create a StorageQuotaIndicator component that displays storage usage as a percentage with a visual progress bar. Show used storage, total storage, and available storage. Use color coding to indicate when storage is approaching or exceeding quota limits."
+        },
+        {
+          "path": "frontend/src/pages/Dashboard.tsx",
+          "operation": "modify",
+          "description": "Integrate the StorageQuotaIndicator component into the user dashboard header or sidebar so users can always see their current storage usage status."
+        },
+        {
+          "path": "frontend/src/hooks/useListAllUsersStorage.ts",
+          "operation": "create",
+          "description": "Create a React Query hook that fetches all users' storage usage using listAllUsersStorage() backend method. This hook should only be enabled for admin users and include periodic polling to keep data current."
+        },
+        {
+          "path": "frontend/src/components/UserStorageManager.tsx",
+          "operation": "create",
+          "description": "Create a UserStorageManager component for admin use that displays a table of all users with their storage usage and quotas. Include UI controls to modify individual user quotas using setUserQuota() backend method. Show user names by fetching profiles via getUserProfile()."
+        },
+        {
+          "path": "frontend/src/pages/AdminDashboard.tsx",
+          "operation": "modify",
+          "description": "Integrate the UserStorageManager component into the admin dashboard. Add admin-only access guard using the authorization component. Verify the component's usage instructions before implementing."
+        }
+      ]
+    }
+  ]
+}

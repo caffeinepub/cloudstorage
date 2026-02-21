@@ -1,0 +1,21 @@
+{
+  "frontend/src/App.tsx": "Main application component with routing, authentication flow, profile setup, and theme provider integration.",
+  "frontend/src/components/Layout.tsx": "Root layout component with header, sidebar, and outlet for nested routes.",
+  "frontend/src/components/Header.tsx": "Top navigation bar with search, theme toggle, and user profile dropdown menu.",
+  "frontend/src/components/Sidebar.tsx": "Left sidebar navigation with menu items, storage quota indicator, and admin access.",
+  "frontend/src/components/StorageQuotaIndicator.tsx": "Visual storage usage indicator with custom progress bar implementation and quota information, refreshes every 5 seconds.",
+  "frontend/src/components/ProfileSetup.tsx": "Profile setup form for first-time users to enter name and email.",
+  "frontend/src/components/FilePreview.tsx": "File preview modal supporting TXT, images, videos, and PDF with download functionality, fixed TypeScript type conversion for Uint8Array.",
+  "frontend/src/components/FileList.tsx": "File listing component with grid/list view toggle, preview, download, and delete actions, auto-refreshes every 3 seconds.",
+  "frontend/src/components/FileUpload.tsx": "Drag-and-drop file upload component with multi-file selection and chunked upload support.",
+  "frontend/src/components/ActivityFeed.tsx": "Real-time activity feed showing recent file operations, refreshes every 7 seconds.",
+  "frontend/src/components/UserStorageManager.tsx": "Admin component for managing user storage quotas with table view and edit dialog.",
+  "frontend/src/pages/LoginPage.tsx": "Landing page with Internet Identity login and feature highlights.",
+  "frontend/src/pages/Dashboard.tsx": "Main dashboard with tabbed interface for files and upload.",
+  "frontend/src/pages/AdminDashboard.tsx": "Admin-only dashboard with user storage management and activity monitoring.",
+  "frontend/src/pages/Settings.tsx": "Settings page with account info, theme selection, notifications, and security options.",
+  "frontend/src/hooks/useQueries.ts": "React Query hooks for all backend operations including file management, storage quota, user profiles, and periodic polling.",
+  "frontend/src/lib/utils.ts": "Utility function for merging Tailwind CSS classes.",
+  "frontend/src/index.css": "Global styles with OKLCH color system for light and dark modes with blue/purple gradient theme.",
+  "frontend/tailwind.config.js": "Tailwind configuration with custom color tokens and design system."
+}

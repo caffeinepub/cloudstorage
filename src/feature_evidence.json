@@ -1,0 +1,90 @@
+{
+  "kind": "feature_evidence_report",
+  "features": [
+    {
+      "featureId": "feature-implement-periodic-polling-mechanism-in-the-frontend-that-automatically-refreshes-the-file-list-every-3-5-seconds-using-react-query-with-refetchinterval",
+      "featureTitle": "Implement periodic polling mechanism in the frontend that automatically refreshes the file list every 3-5 seconds using React Query with refetchInterval",
+      "files": [
+        "frontend/src/pages/Dashboard.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-1"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-implement-file-preview-functionality-for-txt-files-plain-text-display-images-png-jpg-gif-svg-videos-mp4-webm-and-documents-pdf-using-browser-native-rendering-capabilities",
+      "featureTitle": "Implement file preview functionality for TXT files (plain text display), images (PNG, JPG, GIF, SVG), videos (MP4, WebM), and documents (PDF) using browser-native rendering capabilities",
+      "files": [
+        "frontend/src/components/FilePreview.tsx",
+        "frontend/src/pages/Dashboard.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-4"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-add-periodic-polling-to-the-admin-dashboard-activity-feed-that-refreshes-every-5-10-seconds-to-show-recent-file-operations-and-user-actions",
+      "featureTitle": "Add periodic polling to the admin dashboard activity feed that refreshes every 5-10 seconds to show recent file operations and user actions",
+      "files": [
+        "frontend/src/components/ActivityFeed.tsx",
+        "frontend/src/pages/AdminDashboard.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-5"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-implement-storage-quota-tracking-and-enforcement-per-user-with-visual-indicators-showing-used-vs-available-storage",
+      "featureTitle": "Implement storage quota tracking and enforcement per user with visual indicators showing used vs. available storage",
+      "files": [
+        "frontend/src/components/StorageQuotaIndicator.tsx",
+        "frontend/src/components/UserStorageManager.tsx",
+        "frontend/src/pages/AdminDashboard.tsx",
+        "frontend/src/pages/Dashboard.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-6"
+      ],
+      "confidence": "high"
+    }
+  ]
+}

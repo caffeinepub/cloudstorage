@@ -1,0 +1,162 @@
+{
+  "schemaVersion": "1.0.0",
+  "projectStateVersion": 3,
+  "summary": "CloudStorage: A secure cloud storage platform with Internet Identity authentication, file management (upload/download, folders, tags, search), file previews (TXT, images, videos, docs), version history, recycle bin, secure sharing, periodic polling for synchronization, and admin dashboard with user management, analytics, and security monitoring. Files stored in IC canister storage.",
+  "architectural_notes": [
+    "Files stored in Internet Computer canister storage with chunking for size limits",
+    "Periodic polling for synchronization instead of WebSockets",
+    "Browser-native file preview for TXT, images, videos, and documents",
+    "Internet Identity for secure authentication",
+    "Role-based access control: Admin, Manager, User"
+  ],
+  "known_issues": [
+    "IC canister storage has size limits - requires chunking strategy",
+    "Polling-based sync may have latency compared to real-time WebSockets"
+  ],
+  "isFixRequest": false,
+  "existing_features": [
+    {
+      "id": "feature-implement-periodic-polling-mechanism-in-the-frontend-that-automatically-refreshes-the-file-list-every-3-5-seconds-using-react-query-with-refetchinterval",
+      "title": "Implement periodic polling mechanism in the frontend that automatically refreshes the file list every 3-5 seconds using React Query with refetchInterval",
+      "reqIds": [
+        "REQ-1"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-file-preview-functionality-for-txt-files-plain-text-display-images-png-jpg-gif-svg-videos-mp4-webm-and-documents-pdf-using-browser-native-rendering-capabilities",
+      "title": "Implement file preview functionality for TXT files (plain text display), images (PNG, JPG, GIF, SVG), videos (MP4, WebM), and documents (PDF) using browser-native rendering capabilities",
+      "reqIds": [
+        "REQ-4"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-periodic-polling-to-the-admin-dashboard-activity-feed-that-refreshes-every-5-10-seconds-to-show-recent-file-operations-and-user-actions",
+      "title": "Add periodic polling to the admin dashboard activity feed that refreshes every 5-10 seconds to show recent file operations and user actions",
+      "reqIds": [
+        "REQ-5"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-storage-quota-tracking-and-enforcement-per-user-with-visual-indicators-showing-used-vs-available-storage",
+      "title": "Implement storage quota tracking and enforcement per user with visual indicators showing used vs. available storage",
+      "reqIds": [
+        "REQ-6"
+      ],
+      "version": 1
+    }
+  ],
+  "new_feature_requests": [
+    {
+      "id": "AR-1",
+      "summary": "Implement file upload/download with drag-and-drop and bulk operations",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-2",
+      "summary": "Build smart folder system with nested folders, tags, labels, and color-coding",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-3",
+      "summary": "Create advanced search with filters and sorting",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-4",
+      "summary": "Implement file preview for TXT, images, videos, and docs",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-5",
+      "summary": "Add version history and file restore functionality",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-6",
+      "summary": "Build recycle bin with recovery period",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-7",
+      "summary": "Create secure file sharing with password-protected links and expiration",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-8",
+      "summary": "Implement periodic polling for file synchronization across devices",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-9",
+      "summary": "Build main dashboard with sidebar navigation, grid/list view toggle, storage indicator",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-10",
+      "summary": "Implement dark/light mode support",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-11",
+      "summary": "Create settings page with account, security, notifications, device management",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-12",
+      "summary": "Build admin dashboard with user management and role-based access control",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-13",
+      "summary": "Implement storage allocation per user and system activity logs",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-14",
+      "summary": "Create analytics dashboard with graphs, charts, and real-time activity feed",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-15",
+      "summary": "Implement Internet Identity authentication with clean login screens",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-17",
+      "summary": "Implement file storage in Internet Computer canister storage with chunking strategy to handle size limits, storing file metadata and binary data as Blob chunks in stable memory",
+      "reqIds": [
+        "REQ-2"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-18",
+      "summary": "Create backend API methods for file upload (chunked), download (chunk retrieval and assembly), listing files with metadata, and deleting files",
+      "reqIds": [
+        "REQ-3"
+      ],
+      "status": "pending"
+    }
+  ],
+  "projectName": "CloudStorage",
+  "clarification_mode": "instant",
+  "clarification_rounds": 0
+}

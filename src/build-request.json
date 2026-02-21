@@ -1,0 +1,131 @@
+{
+  "kind": "build_request",
+  "title": "Implement periodic refresh, IC canister storage, and file previews",
+  "projectName": "CloudStorage",
+  "priority": "normal",
+  "requirements": [
+    {
+      "id": "REQ-1",
+      "text": "Implement periodic polling mechanism in the frontend that automatically refreshes the file list every 3-5 seconds using React Query with refetchInterval",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-3"
+        ],
+        "quotes": [
+          "to implement periodic refresh/polling instead (e.g., files refresh every few seconds)"
+        ]
+      },
+      "acceptanceCriteria": [
+        "File list automatically refreshes every few seconds without manual user interaction",
+        "Polling can be paused when user is inactive to save resources",
+        "Loading states are handled gracefully without disrupting user experience"
+      ]
+    },
+    {
+      "id": "REQ-2",
+      "text": "Implement file storage in Internet Computer canister storage with chunking strategy to handle size limits, storing file metadata and binary data as Blob chunks in stable memory",
+      "target": "backend",
+      "source": {
+        "messageIds": [
+          "msg-3"
+        ],
+        "quotes": [
+          "use the Internet Computer's canister storage (which has size limits per canister and costs cycles"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Files are split into manageable chunks (e.g., 1-2MB per chunk) for storage",
+        "File metadata (name, size, type, owner, upload date) is stored separately from binary data",
+        "Chunks are reassembled correctly during download",
+        "Storage usage is tracked per user and globally"
+      ]
+    },
+    {
+      "id": "REQ-3",
+      "text": "Create backend API methods for file upload (chunked), download (chunk retrieval and assembly), listing files with metadata, and deleting files",
+      "target": "backend",
+      "source": {
+        "messageIds": [
+          "msg-3"
+        ]
+      },
+      "acceptanceCriteria": [
+        "uploadFileChunk accepts file chunks with metadata and stores them in stable memory",
+        "downloadFile retrieves and returns all chunks for a given file ID",
+        "listFiles returns array of file metadata for the authenticated user",
+        "deleteFile removes all chunks and metadata for a file"
+      ]
+    },
+    {
+      "id": "REQ-4",
+      "text": "Implement file preview functionality for TXT files (plain text display), images (PNG, JPG, GIF, SVG), videos (MP4, WebM), and documents (PDF) using browser-native rendering capabilities",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-3"
+        ],
+        "quotes": [
+          "want previews for TXT, images, videos, and docs"
+        ]
+      },
+      "acceptanceCriteria": [
+        "TXT files display content in a readable text viewer with syntax highlighting if applicable",
+        "Images render in an image viewer with zoom and pan controls",
+        "Videos play in a native HTML5 video player with standard controls",
+        "PDF documents render using browser's built-in PDF viewer or an embedded PDF renderer",
+        "Preview panel shows file type badge and fallback message for unsupported formats"
+      ]
+    },
+    {
+      "id": "REQ-5",
+      "text": "Add periodic polling to the admin dashboard activity feed that refreshes every 5-10 seconds to show recent file operations and user actions",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-3"
+        ],
+        "quotes": [
+          "Real-time activity feed"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Admin activity feed automatically updates with latest system events",
+        "Activity entries show timestamp, user, action type, and affected file/resource",
+        "Polling interval is configurable and can be adjusted based on admin preferences"
+      ]
+    },
+    {
+      "id": "REQ-6",
+      "text": "Implement storage quota tracking and enforcement per user with visual indicators showing used vs. available storage",
+      "target": "both",
+      "source": {
+        "messageIds": [
+          "msg-2"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Backend tracks total storage used per user across all their files",
+        "Upload operations fail gracefully when user exceeds quota with clear error message",
+        "Frontend displays storage usage as percentage with visual progress bar",
+        "Admin dashboard allows setting and modifying per-user storage limits"
+      ]
+    }
+  ],
+  "constraints": [
+    "Must use Internet Computer canister storage, not external storage services",
+    "Cannot use WebSockets or real-time features; must use polling instead",
+    "File chunking is required to work within IC canister size limits",
+    "All file previews must use browser-native rendering capabilities only"
+  ],
+  "nonGoals": [
+    "Integration with external storage APIs like AWS S3 or Google Cloud Storage",
+    "Real-time synchronization using WebSockets or Server-Sent Events",
+    "Third-party preview services for complex document formats",
+    "Mobile native app development (focus on responsive web interface only)"
+  ],
+  "imageRequirements": {
+    "required": [],
+    "edits": []
+  }
+}
