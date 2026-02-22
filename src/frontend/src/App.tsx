@@ -2,9 +2,12 @@ import { RouterProvider, createRouter, createRoute, createRootRoute } from '@tan
 import { useInternetIdentity } from './hooks/useInternetIdentity';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from '@/components/ui/sonner';
+import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import Settings from './pages/Settings';
+import Trash from './pages/Trash';
+import FoldersPage from './pages/FoldersPage';
 import LoginPage from './pages/LoginPage';
 import ProfileSetup from './components/ProfileSetup';
 import { useGetCallerUserProfile } from './hooks/useQueries';
@@ -14,10 +17,22 @@ const rootRoute = createRootRoute({
   component: Layout,
 });
 
-const indexRoute = createRoute({
+const homeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
+  component: Home,
+});
+
+const dashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dashboard',
   component: Dashboard,
+});
+
+const foldersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/folders',
+  component: FoldersPage,
 });
 
 const adminRoute = createRoute({
@@ -32,7 +47,13 @@ const settingsRoute = createRoute({
   component: Settings,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, adminRoute, settingsRoute]);
+const trashRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/trash',
+  component: Trash,
+});
+
+const routeTree = rootRoute.addChildren([homeRoute, dashboardRoute, foldersRoute, adminRoute, settingsRoute, trashRoute]);
 
 const router = createRouter({ routeTree });
 

@@ -1,11 +1,11 @@
-import { useActivityFeed } from '../hooks/useQueries';
+import { useRecentActivities } from '../hooks/useQueries';
 import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { FileIcon, Trash2, Download, Upload, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 export default function ActivityFeed() {
-  const { data: activities, isLoading } = useActivityFeed();
+  const { data: activities, isLoading } = useRecentActivities();
 
   if (isLoading) {
     return (
@@ -31,12 +31,12 @@ export default function ActivityFeed() {
   }
 
   const getActivityIcon = (action: string) => {
-    switch (action) {
-      case 'upload':
+    switch (action.toUpperCase()) {
+      case 'UPLOAD':
         return <Upload className="h-4 w-4" />;
-      case 'download':
+      case 'DOWNLOAD':
         return <Download className="h-4 w-4" />;
-      case 'delete':
+      case 'DELETE':
         return <Trash2 className="h-4 w-4" />;
       default:
         return <FileIcon className="h-4 w-4" />;
@@ -50,17 +50,17 @@ export default function ActivityFeed() {
         <div className="space-y-3">
           {activities.map((activity, index) => (
             <div
-              key={index}
+              key={`${activity.fileId}-${activity.timestamp}-${index}`}
               className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors"
             >
               <div className="mt-1">{getActivityIcon(activity.action)}</div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">{activity.userName}</p>
+                <p className="text-sm font-medium">{activity.action}</p>
                 <p className="text-xs text-muted-foreground truncate">
-                  {activity.action} • {activity.fileName}
+                  {activity.fileName}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {new Date(Number(activity.timestamp)).toLocaleString()}
+                  {activity.relativeTime}
                 </p>
               </div>
               <Badge variant="outline" className="text-xs">

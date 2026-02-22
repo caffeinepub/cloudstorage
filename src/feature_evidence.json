@@ -2,10 +2,11 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-implement-periodic-polling-mechanism-in-the-frontend-that-automatically-refreshes-the-file-list-every-3-5-seconds-using-react-query-with-refetchinterval",
-      "featureTitle": "Implement periodic polling mechanism in the frontend that automatically refreshes the file list every 3-5 seconds using React Query with refetchInterval",
+      "featureId": "feature-implement-folder-navigation-state-management-tracking-current-folderid-in-frontend-allowing-users-to-navigate-into-folders-by-clicking-them",
+      "featureTitle": "Implement folder navigation state management tracking current folderId in frontend, allowing users to navigate into folders by clicking them",
       "files": [
-        "frontend/src/pages/Dashboard.tsx"
+        "frontend/src/hooks/useQueries.ts",
+        "frontend/src/pages/FoldersPage.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -17,16 +18,15 @@
         "github-export-icp-cli@1.0.0"
       ],
       "testIds": [
-        "REQ-1"
+        "REQ-3"
       ],
       "confidence": "high"
     },
     {
-      "featureId": "feature-implement-file-preview-functionality-for-txt-files-plain-text-display-images-png-jpg-gif-svg-videos-mp4-webm-and-documents-pdf-using-browser-native-rendering-capabilities",
-      "featureTitle": "Implement file preview functionality for TXT files (plain text display), images (PNG, JPG, GIF, SVG), videos (MP4, WebM), and documents (PDF) using browser-native rendering capabilities",
+      "featureId": "feature-add-breadcrumb-navigation-component-showing-full-folder-path-from-root-to-current-location-with-clickable-links-to-navigate-to-any-ancestor-folder",
+      "featureTitle": "Add breadcrumb navigation component showing full folder path from root to current location with clickable links to navigate to any ancestor folder",
       "files": [
-        "frontend/src/components/FilePreview.tsx",
-        "frontend/src/pages/Dashboard.tsx"
+        "frontend/src/pages/FoldersPage.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -43,11 +43,10 @@
       "confidence": "high"
     },
     {
-      "featureId": "feature-add-periodic-polling-to-the-admin-dashboard-activity-feed-that-refreshes-every-5-10-seconds-to-show-recent-file-operations-and-user-actions",
-      "featureTitle": "Add periodic polling to the admin dashboard activity feed that refreshes every 5-10 seconds to show recent file operations and user actions",
+      "featureId": "feature-add-back-button-that-navigates-to-the-parent-folder-of-the-current-location",
+      "featureTitle": "Add back button that navigates to the parent folder of the current location",
       "files": [
-        "frontend/src/components/ActivityFeed.tsx",
-        "frontend/src/pages/AdminDashboard.tsx"
+        "frontend/src/pages/FoldersPage.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -64,13 +63,12 @@
       "confidence": "high"
     },
     {
-      "featureId": "feature-implement-storage-quota-tracking-and-enforcement-per-user-with-visual-indicators-showing-used-vs-available-storage",
-      "featureTitle": "Implement storage quota tracking and enforcement per user with visual indicators showing used vs. available storage",
+      "featureId": "feature-ensure-file-upload-functionality-works-within-any-folder-by-passing-current-folderid-to-upload-operation",
+      "featureTitle": "Ensure file upload functionality works within any folder by passing current folderId to upload operation",
       "files": [
-        "frontend/src/components/StorageQuotaIndicator.tsx",
-        "frontend/src/components/UserStorageManager.tsx",
-        "frontend/src/pages/AdminDashboard.tsx",
-        "frontend/src/pages/Dashboard.tsx"
+        "frontend/src/components/FileUpload.tsx",
+        "frontend/src/hooks/useQueries.ts",
+        "frontend/src/pages/FoldersPage.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -83,6 +81,71 @@
       ],
       "testIds": [
         "REQ-6"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-ensure-files-are-isolated-to-their-specific-folder-location-and-only-appear-in-the-file-display-when-that-folder-is-actively-selected",
+      "featureTitle": "Ensure files are isolated to their specific folder location and only appear in the file display when that folder is actively selected",
+      "files": [
+        "frontend/src/components/FileList.tsx",
+        "frontend/src/hooks/useQueries.ts",
+        "frontend/src/pages/FoldersPage.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-7"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-fix-folder-creation-in-my-folder-section-to-properly-display-newly-created-folders-in-the-folder-list-immediately-after-creation",
+      "featureTitle": "Fix folder creation in My Folder section to properly display newly created folders in the folder list immediately after creation",
+      "files": [
+        "frontend/src/pages/FoldersPage.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-8"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-maintain-separate-independent-storage-areas-for-my-files-section-root-level-files-with-no-folder-and-my-folder-section-organized-folder-hierarchy",
+      "featureTitle": "Maintain separate independent storage areas for My Files section (root-level files with no folder) and My Folder section (organized folder hierarchy)",
+      "files": [
+        "frontend/src/components/FileList.tsx",
+        "frontend/src/hooks/useQueries.ts",
+        "frontend/src/pages/Dashboard.tsx",
+        "frontend/src/pages/FoldersPage.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-9"
       ],
       "confidence": "high"
     }

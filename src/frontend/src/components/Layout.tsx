@@ -8,7 +8,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
+      <Header />
       <div className="flex pt-16">
         <Sidebar isOpen={sidebarOpen} />
         <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>

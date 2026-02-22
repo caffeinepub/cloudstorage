@@ -1,145 +1,182 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState } from 'react';
+import { useGetCallerUserProfile, useGetUserRetentionPeriod, useSetUserRetentionPeriod } from '../hooks/useQueries';
+import { useInternetIdentity } from '../hooks/useInternetIdentity';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { toast } from 'sonner';
 import { useTheme } from 'next-themes';
-import { useGetCallerUserProfile } from '../hooks/useQueries';
-import { Moon, Sun, Monitor } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 
 export default function Settings() {
+  const { data: profile } = useGetCallerUserProfile();
+  const { data: retentionPeriod } = useGetUserRetentionPeriod();
+  const setRetentionPeriod = useSetUserRetentionPeriod();
+  const { identity, clear } = useInternetIdentity();
   const { theme, setTheme } = useTheme();
-  const { data: userProfile } = useGetCallerUserProfile();
+
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [emailNotifications, setEmailNotifications] = useState(false);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+
+  const handleRetentionChange = async (days: string) => {
+    if (!identity) return;
+    
+    const daysNum = parseInt(days);
+    const periodNanoseconds = BigInt(daysNum * 24 * 60 * 60 * 1000000000);
+    
+    try {
+      await setRetentionPeriod.mutateAsync({
+        user: identity.getPrincipal(),
+        period: periodNanoseconds,
+      });
+      toast.success('Retention period updated');
+    } catch (error) {
+      toast.error('Failed to update retention period');
+    }
+  };
+
+  const handleLogout = async () => {
+    await clear();
+    toast.success('Logged out successfully');
+  };
+
+  const retentionDays = retentionPeriod 
+    ? Math.floor(Number(retentionPeriod) / (24 * 60 * 60 * 1000000000))
+    : 30;
 
   return (
     <div className="container mx-auto p-6 max-w-4xl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Settings</h1>
-        <p className="text-muted-foreground">Manage your account and preferences</p>
-      </div>
+      <h1 className="text-3xl font-bold mb-6">Settings</h1>
 
       <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Account Information</CardTitle>
-            <CardDescription>Your profile details</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <Card className="p-6">
+          <h2 className="text-xl font-semibold mb-4">Account Information</h2>
+          <div className="space-y-4">
             <div>
               <Label>Name</Label>
-              <p className="text-sm text-muted-foreground mt-1">
-                {userProfile?.name || 'Not set'}
-              </p>
+              <Input value={profile?.name || ''} disabled className="mt-1" />
             </div>
             <div>
               <Label>Email</Label>
+              <Input value={profile?.email || ''} disabled className="mt-1" />
+            </div>
+            <div>
+              <Label>Principal ID</Label>
+              <Input 
+                value={identity?.getPrincipal().toString() || ''} 
+                disabled 
+                className="mt-1 font-mono text-xs" 
+              />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <h2 className="text-xl font-semibold mb-4">Trash Settings</h2>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="retention">Trash Retention Period</Label>
+              <Select 
+                value={retentionDays.toString()} 
+                onValueChange={handleRetentionChange}
+              >
+                <SelectTrigger id="retention" className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7">7 days</SelectItem>
+                  <SelectItem value="14">14 days</SelectItem>
+                  <SelectItem value="30">30 days</SelectItem>
+                  <SelectItem value="60">60 days</SelectItem>
+                  <SelectItem value="90">90 days</SelectItem>
+                </SelectContent>
+              </Select>
               <p className="text-sm text-muted-foreground mt-1">
-                {userProfile?.email || 'Not set'}
+                Files in trash will be permanently deleted after this period
               </p>
             </div>
-          </CardContent>
+          </div>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Appearance</CardTitle>
-            <CardDescription>Customize how CloudStorage looks</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label>Theme</Label>
-              <div className="flex gap-2">
-                <Button
-                  variant={theme === 'light' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setTheme('light')}
-                >
-                  <Sun className="h-4 w-4 mr-2" />
-                  Light
-                </Button>
-                <Button
-                  variant={theme === 'dark' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setTheme('dark')}
-                >
-                  <Moon className="h-4 w-4 mr-2" />
-                  Dark
-                </Button>
-                <Button
-                  variant={theme === 'system' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setTheme('system')}
-                >
-                  <Monitor className="h-4 w-4 mr-2" />
-                  System
-                </Button>
-              </div>
+        <Card className="p-6">
+          <h2 className="text-xl font-semibold mb-4">Appearance</h2>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="theme">Theme</Label>
+              <Select value={theme} onValueChange={setTheme}>
+                <SelectTrigger id="theme" className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="light">Light</SelectItem>
+                  <SelectItem value="dark">Dark</SelectItem>
+                  <SelectItem value="system">System</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          </CardContent>
+          </div>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Notifications</CardTitle>
-            <CardDescription>Manage your notification preferences</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <Card className="p-6">
+          <h2 className="text-xl font-semibold mb-4">Notifications</h2>
+          <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>File Upload Notifications</Label>
+              <div>
+                <Label>Enable Notifications</Label>
                 <p className="text-sm text-muted-foreground">
-                  Get notified when files finish uploading
+                  Receive notifications about file activities
                 </p>
               </div>
-              <Switch />
+              <Switch 
+                checked={notificationsEnabled} 
+                onCheckedChange={setNotificationsEnabled}
+              />
             </div>
             <Separator />
             <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Storage Alerts</Label>
+              <div>
+                <Label>Email Notifications</Label>
                 <p className="text-sm text-muted-foreground">
-                  Alert when storage is running low
+                  Receive email alerts for important events
                 </p>
               </div>
-              <Switch defaultChecked />
+              <Switch 
+                checked={emailNotifications} 
+                onCheckedChange={setEmailNotifications}
+                disabled={!notificationsEnabled}
+              />
             </div>
-          </CardContent>
+          </div>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Security</CardTitle>
-            <CardDescription>Manage your security settings</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <Card className="p-6">
+          <h2 className="text-xl font-semibold mb-4">Security</h2>
+          <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
+              <div>
                 <Label>Two-Factor Authentication</Label>
                 <p className="text-sm text-muted-foreground">
-                  Add an extra layer of security
+                  Add an extra layer of security to your account
                 </p>
               </div>
-              <Switch />
+              <Switch 
+                checked={twoFactorEnabled} 
+                onCheckedChange={setTwoFactorEnabled}
+              />
             </div>
-          </CardContent>
+            <Separator />
+            <div>
+              <Button variant="destructive" onClick={handleLogout}>
+                Logout
+              </Button>
+            </div>
+          </div>
         </Card>
       </div>
-
-      <footer className="mt-12 pt-6 border-t border-border text-center text-sm text-muted-foreground">
-        <p>
-          © {new Date().getFullYear()} CloudStorage. Built with ❤️ using{' '}
-          <a
-            href={`https://caffeine.ai/?utm_source=Caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(
-              window.location.hostname
-            )}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary hover:underline"
-          >
-            caffeine.ai
-          </a>
-        </p>
-      </footer>
     </div>
   );
 }

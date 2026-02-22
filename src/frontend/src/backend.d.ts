@@ -7,16 +7,30 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
-export interface UserProfile {
-    name: string;
-    email: string;
-}
 export interface FileMetadata {
     id: string;
     owner: Principal;
     name: string;
     size: bigint;
+    folderId?: string;
     uploadedAt: bigint;
+}
+export interface FolderMetadata {
+    id: string;
+    owner: Principal;
+    name: string;
+    createdAt: bigint;
+    color: string;
+    tags: Array<string>;
+    description: string;
+    updatedAt: bigint;
+    collaborators: Array<Principal>;
+    parentFolderId?: string;
+    isPublic: boolean;
+}
+export interface UserProfile {
+    name: string;
+    email: string;
 }
 export enum UserRole {
     admin = "admin",
@@ -25,21 +39,21 @@ export enum UserRole {
 }
 export interface backendInterface {
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
-    deleteFile(fileId: string): Promise<boolean>;
-    downloadFileChunk(fileId: string, _chunkIndex: bigint): Promise<Uint8Array | null>;
+    createFolder(name: string, parentFolderId: string | null, isPublic: boolean, collaborators: Array<Principal>, color: string, tags: Array<string>, description: string): Promise<string>;
+    deleteFolder(folderId: string, deleteContents: boolean, moveContentsToParent: boolean): Promise<boolean>;
+    downloadFileChunk(fileId: string, chunkIndex: bigint): Promise<Uint8Array | null>;
+    editFolder(folderId: string, isPublic: boolean, collaborators: Array<Principal>, color: string, tags: Array<string>, description: string): Promise<boolean>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getFileMetadata(fileId: string): Promise<FileMetadata | null>;
-    getStorageQuota(): Promise<{
-        total: bigint;
-        used: bigint;
-        available: bigint;
-    }>;
+    getFolderMetadata(folderId: string): Promise<FolderMetadata | null>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
-    listAllUsersStorage(): Promise<Array<[Principal, bigint, bigint]>>;
     listFiles(): Promise<Array<FileMetadata>>;
+    listFilesByFolder(folderId: string | null): Promise<Array<FileMetadata>>;
+    listFolders(): Promise<Array<FolderMetadata>>;
+    moveFolder(folderId: string, newParentFolderId: string | null): Promise<boolean>;
+    renameFolder(folderId: string, newName: string): Promise<boolean>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
-    setUserQuota(user: Principal, quota: bigint): Promise<void>;
-    uploadFileChunk(fileId: string, fileName: string, chunkIndex: bigint, _chunkData: Uint8Array, totalChunks: bigint, totalSize: bigint): Promise<string | null>;
+    uploadFileChunk(fileId: string, fileName: string, chunkIndex: bigint, chunkData: Uint8Array, totalChunks: bigint, totalSize: bigint, folderId: string | null): Promise<string | null>;
 }

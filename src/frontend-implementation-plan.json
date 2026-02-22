@@ -1,120 +1,189 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Implement periodic refresh, file previews, and storage quota UI",
+  "title": "Frontend implementation for nested folder management and navigation",
   "requirements": [
     {
-      "id": "REQ-1",
-      "summary": "Implement periodic polling mechanism that automatically refreshes the file list every 3-5 seconds using React Query with refetchInterval",
+      "id": "REQ-3",
+      "summary": "Implement folder navigation state management tracking current folderId in frontend",
       "acceptanceCriteria": [
-        "File list automatically refreshes every few seconds without manual user interaction",
-        "Polling can be paused when user is inactive to save resources",
-        "Loading states are handled gracefully without disrupting user experience"
+        "Clicking a folder updates the current folderId state",
+        "File display area shows only files belonging to the current folderId",
+        "Folder list shows only direct children of current folderId",
+        "Navigation state persists during component lifecycle"
       ],
       "file_operations": [
         {
-          "path": "frontend/src/hooks/useListFiles.ts",
-          "operation": "create",
-          "description": "Create a React Query hook that fetches the file list from the backend using listFiles() and configures refetchInterval to poll every 3-5 seconds. Include logic to pause polling when the document is hidden or user is inactive. Handle loading states gracefully to avoid UI disruption during background refreshes."
+          "path": "frontend/src/pages/FoldersPage.tsx",
+          "operation": "modify",
+          "description": "Add currentFolderId state tracking using useState. Update handleFolderClick to set currentFolderId when a folder is clicked. Pass currentFolderId to useListFilesByFolder and useListFolders queries to filter displayed items. Initialize with null for root level."
         },
         {
-          "path": "frontend/src/pages/Dashboard.tsx",
+          "path": "frontend/src/hooks/useFolderQueries.ts",
           "operation": "modify",
-          "description": "Replace any existing file listing logic with the useListFiles hook to enable automatic periodic refresh. Display the file list with appropriate loading indicators that don't disrupt the user experience during background polling."
+          "description": "Add useListFoldersByParent query hook that accepts parentFolderId parameter and calls backend listFolders, then filters results client-side by parentFolderId. Include proper query key with parentFolderId to enable caching per folder level."
+        },
+        {
+          "path": "frontend/src/hooks/useQueries.ts",
+          "operation": "modify",
+          "description": "Modify useListFilesByFolder to accept optional folderId parameter and pass it to backend.listFilesByFolder(folderId). Update query key to include folderId for proper cache segmentation."
         }
       ]
     },
     {
       "id": "REQ-4",
-      "summary": "Implement file preview functionality for TXT, images, videos, and PDF documents using browser-native rendering capabilities",
+      "summary": "Add breadcrumb navigation component showing full folder path with clickable links",
       "acceptanceCriteria": [
-        "TXT files display content in a readable text viewer with syntax highlighting if applicable",
-        "Images render in an image viewer with zoom and pan controls",
-        "Videos play in a native HTML5 video player with standard controls",
-        "PDF documents render using browser's built-in PDF viewer or an embedded PDF renderer",
-        "Preview panel shows file type badge and fallback message for unsupported formats"
+        "Breadcrumbs display complete folder hierarchy from root to current folder",
+        "Each breadcrumb segment is clickable and navigates to that folder level",
+        "Breadcrumb separator visually indicates hierarchy (e.g., '/' or '>')",
+        "Current folder is highlighted or styled differently from ancestors"
       ],
       "file_operations": [
         {
-          "path": "frontend/src/components/FilePreview.tsx",
-          "operation": "create",
-          "description": "Create a FilePreview component that accepts file metadata and renders appropriate preview based on file type. For text files (TXT), display content in a pre-formatted text viewer. For images (PNG, JPG, GIF, SVG), render using an img element with zoom/pan controls. For videos (MP4, WebM), use HTML5 video element with native controls. For PDFs, use an iframe or embed element to leverage browser's PDF renderer. Include a file type badge and fallback message for unsupported formats."
-        },
-        {
-          "path": "frontend/src/hooks/useDownloadFile.ts",
-          "operation": "create",
-          "description": "Create a React Query hook that downloads file chunks using downloadFileChunk() backend method, reassembles chunks into complete file data, and returns as a Blob or data URL suitable for preview rendering. Include error handling for failed chunk retrieval."
-        },
-        {
-          "path": "frontend/src/pages/Dashboard.tsx",
+          "path": "frontend/src/components/FolderBreadcrumb.tsx",
           "operation": "modify",
-          "description": "Integrate FilePreview component into the dashboard UI. Add preview trigger functionality (e.g., click on file name or preview icon) that opens a modal or side panel showing the FilePreview component with the selected file."
+          "description": "Enhance component to accept currentFolderId prop and onNavigate callback. Build folder path by traversing parentFolderId chain using folder metadata from cache. Render clickable breadcrumb segments with ChevronRight separator. Style current folder differently (e.g., font-semibold). Add 'Home' or 'Root' as first breadcrumb that navigates to null folderId."
+        },
+        {
+          "path": "frontend/src/pages/FoldersPage.tsx",
+          "operation": "modify",
+          "description": "Wire FolderBreadcrumb component into the page layout above the folder grid. Pass currentFolderId and setCurrentFolderId as onNavigate callback. Position breadcrumb in the toolbar area or directly above content."
+        },
+        {
+          "path": "frontend/src/hooks/useFolderQueries.ts",
+          "operation": "modify",
+          "description": "Add useGetFolderPath query hook that accepts folderId and returns array of folder objects from root to target. Implement by recursively fetching parent folders using getFolderMetadata until reaching root (null parentFolderId). Cache with queryKey including folderId."
         }
       ]
     },
     {
       "id": "REQ-5",
-      "summary": "Add periodic polling to the admin dashboard activity feed that refreshes every 5-10 seconds to show recent file operations and user actions",
+      "summary": "Add back button that navigates to the parent folder",
       "acceptanceCriteria": [
-        "Admin activity feed automatically updates with latest system events",
-        "Activity entries show timestamp, user, action type, and affected file/resource",
-        "Polling interval is configurable and can be adjusted based on admin preferences"
+        "Back button is visible when user is not at root level",
+        "Clicking back button navigates to parent folder",
+        "Back button is disabled or hidden when at root level",
+        "Back button includes appropriate icon (e.g., arrow left)"
       ],
       "file_operations": [
         {
-          "path": "frontend/src/hooks/useActivityFeed.ts",
-          "operation": "create",
-          "description": "Create a React Query hook that fetches recent activity data from the backend and configures refetchInterval to poll every 5-10 seconds. The hook should only be enabled when the current user has admin role. Include logic to pause polling when user is inactive or admin dashboard is not visible."
-        },
-        {
-          "path": "frontend/src/components/ActivityFeed.tsx",
-          "operation": "create",
-          "description": "Create an ActivityFeed component that displays recent file operations and user actions. Each activity entry should show timestamp, user name (fetched via getUserProfile), action type (upload, download, delete), and affected file name. Include loading states and empty state messaging."
-        },
-        {
-          "path": "frontend/src/pages/AdminDashboard.tsx",
+          "path": "frontend/src/pages/FoldersPage.tsx",
           "operation": "modify",
-          "description": "Integrate the ActivityFeed component into the admin dashboard layout. Add admin-only access guard using the authorization component to ensure only users with admin role can view the activity feed. Verify the component's usage instructions before implementing."
+          "description": "Add back button to toolbar using ArrowLeft icon from lucide-react. Show button only when currentFolderId is not null. On click, fetch current folder metadata to get parentFolderId, then setCurrentFolderId to parent. Position button at the start of the toolbar."
         }
       ]
     },
     {
       "id": "REQ-6",
-      "summary": "Implement storage quota tracking frontend UI with visual indicators showing used vs. available storage",
+      "summary": "Ensure file upload functionality works within any folder by passing current folderId",
       "acceptanceCriteria": [
-        "Frontend displays storage usage as percentage with visual progress bar",
-        "Admin dashboard allows setting and modifying per-user storage limits"
+        "File upload component accepts current folderId as parameter",
+        "Uploaded files are associated with the current folderId in metadata",
+        "Files uploaded in a folder only appear when viewing that specific folder",
+        "Upload progress and success messages indicate the target folder"
       ],
       "file_operations": [
         {
-          "path": "frontend/src/hooks/useStorageQuota.ts",
-          "operation": "create",
-          "description": "Create a React Query hook that fetches the current user's storage quota using getStorageQuota() backend method. Configure the hook to refetch periodically or after file operations to keep quota information current."
+          "path": "frontend/src/components/FileUpload.tsx",
+          "operation": "modify",
+          "description": "Add folderId prop (string | null) to component. Pass folderId to useUploadFile mutation when uploading. Update success toast message to include folder name if folderId is provided (e.g., 'File uploaded to [Folder Name]')."
         },
         {
-          "path": "frontend/src/components/StorageQuotaIndicator.tsx",
-          "operation": "create",
-          "description": "Create a StorageQuotaIndicator component that displays storage usage as a percentage with a visual progress bar. Show used storage, total storage, and available storage. Use color coding to indicate when storage is approaching or exceeding quota limits."
+          "path": "frontend/src/pages/FoldersPage.tsx",
+          "operation": "modify",
+          "description": "Pass currentFolderId to FileUpload component. Ensure FileUpload is rendered in the folders view and receives the active folderId state."
         },
+        {
+          "path": "frontend/src/hooks/useQueries.ts",
+          "operation": "modify",
+          "description": "Modify useUploadFile mutation to accept folderId parameter in the upload function. Pass folderId to backend.uploadFileChunk. Invalidate both 'files' and folder-specific query keys after successful upload."
+        }
+      ]
+    },
+    {
+      "id": "REQ-7",
+      "summary": "Ensure files are isolated to their specific folder location",
+      "acceptanceCriteria": [
+        "File queries filter by current folderId to show only files in that folder",
+        "Files uploaded to folder A do not appear when viewing folder B",
+        "Root-level files (no folderId) only appear at root level",
+        "Moving a file updates its folderId to the new location"
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/pages/FoldersPage.tsx",
+          "operation": "modify",
+          "description": "Ensure FileList component receives currentFolderId and only displays files matching that folderId. Use useListFilesByFolder(currentFolderId) instead of useListFiles() to fetch folder-specific files."
+        },
+        {
+          "path": "frontend/src/components/FileList.tsx",
+          "operation": "modify",
+          "description": "Add folderId prop (string | null). Replace useListFiles with useListFilesByFolder(folderId) when folderId prop is provided. Ensure filtering logic respects folder isolation."
+        },
+        {
+          "path": "frontend/src/hooks/useQueries.ts",
+          "operation": "modify",
+          "description": "Ensure useListFilesByFolder properly passes folderId to backend.listFilesByFolder. Update cache invalidation in file mutations to invalidate both global 'files' key and folder-specific keys."
+        }
+      ]
+    },
+    {
+      "id": "REQ-8",
+      "summary": "Fix folder creation to properly display newly created folders immediately",
+      "acceptanceCriteria": [
+        "Creating a new folder triggers immediate cache invalidation and refetch of folder list",
+        "Newly created folder appears in the folder list without requiring page refresh",
+        "Folder creation mutation returns the created folder object for optimistic updates",
+        "Error states are handled and displayed if folder creation fails"
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/hooks/useFolderQueries.ts",
+          "operation": "modify",
+          "description": "Modify useCreateFolder mutation to invalidate query keys ['folders'] and parent-specific folder query keys after successful creation. Add onSuccess callback that triggers queryClient.invalidateQueries. Add error handling with toast notifications for failure cases."
+        },
+        {
+          "path": "frontend/src/pages/FoldersPage.tsx",
+          "operation": "modify",
+          "description": "Ensure folder list refetches automatically after folder creation by relying on React Query cache invalidation. Add loading state handling during folder creation. Display success toast with created folder name."
+        }
+      ]
+    },
+    {
+      "id": "REQ-9",
+      "summary": "Maintain separate independent storage areas for My Files and My Folder sections",
+      "acceptanceCriteria": [
+        "My Files section displays only files with null or empty folderId",
+        "My Folder section displays folder hierarchy and files within folders",
+        "Files uploaded in My Files remain separate from My Folder contents",
+        "Navigation between sections is clear and maintains separate state"
+      ],
+      "file_operations": [
         {
           "path": "frontend/src/pages/Dashboard.tsx",
           "operation": "modify",
-          "description": "Integrate the StorageQuotaIndicator component into the user dashboard header or sidebar so users can always see their current storage usage status."
+          "description": "Ensure 'files' view uses FileList without folderId (showing only root files with null folderId). Keep FileUpload in Dashboard for uploading root-level files (pass folderId=null). Add clear visual distinction that this section is for loose files only."
         },
         {
-          "path": "frontend/src/hooks/useListAllUsersStorage.ts",
-          "operation": "create",
-          "description": "Create a React Query hook that fetches all users' storage usage using listAllUsersStorage() backend method. This hook should only be enabled for admin users and include periodic polling to keep data current."
-        },
-        {
-          "path": "frontend/src/components/UserStorageManager.tsx",
-          "operation": "create",
-          "description": "Create a UserStorageManager component for admin use that displays a table of all users with their storage usage and quotas. Include UI controls to modify individual user quotas using setUserQuota() backend method. Show user names by fetching profiles via getUserProfile()."
-        },
-        {
-          "path": "frontend/src/pages/AdminDashboard.tsx",
+          "path": "frontend/src/pages/FoldersPage.tsx",
           "operation": "modify",
-          "description": "Integrate the UserStorageManager component into the admin dashboard. Add admin-only access guard using the authorization component. Verify the component's usage instructions before implementing."
+          "description": "Ensure this page manages folder hierarchy independently from Dashboard. Display folder tree and folder-specific files only. Keep state isolated using currentFolderId. Add page title 'My Folders' to distinguish from 'My Files'."
+        },
+        {
+          "path": "frontend/src/components/Sidebar.tsx",
+          "operation": "modify",
+          "description": "Ensure 'My Files' navigation item routes to /files (Dashboard) and 'My Folders' or folder tree items route to /folders (FoldersPage). Keep navigation items visually distinct to clarify the separation."
+        },
+        {
+          "path": "frontend/src/hooks/useQueries.ts",
+          "operation": "modify",
+          "description": "Add useListRootFiles query hook that calls backend.listFilesByFolder(null) to fetch only root-level files. Use separate query key ['root-files'] to isolate cache from folder-specific queries."
+        },
+        {
+          "path": "frontend/src/components/FileList.tsx",
+          "operation": "modify",
+          "description": "Add mode prop ('root' | 'folder') to determine data source. When mode='root', use useListRootFiles. When mode='folder', use useListFilesByFolder(folderId). Display appropriate empty state messages for each mode."
         }
       ]
     }

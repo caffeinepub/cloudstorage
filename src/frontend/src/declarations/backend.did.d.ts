@@ -15,7 +15,21 @@ export interface FileMetadata {
   'owner' : Principal,
   'name' : string,
   'size' : bigint,
+  'folderId' : [] | [string],
   'uploadedAt' : bigint,
+}
+export interface FolderMetadata {
+  'id' : string,
+  'owner' : Principal,
+  'name' : string,
+  'createdAt' : bigint,
+  'color' : string,
+  'tags' : Array<string>,
+  'description' : string,
+  'updatedAt' : bigint,
+  'collaborators' : Array<Principal>,
+  'parentFolderId' : [] | [string],
+  'isPublic' : boolean,
 }
 export interface UserProfile { 'name' : string, 'email' : string }
 export type UserRole = { 'admin' : null } |
@@ -50,23 +64,38 @@ export interface _SERVICE {
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
-  'deleteFile' : ActorMethod<[string], boolean>,
+  'createFolder' : ActorMethod<
+    [
+      string,
+      [] | [string],
+      boolean,
+      Array<Principal>,
+      string,
+      Array<string>,
+      string,
+    ],
+    string
+  >,
+  'deleteFolder' : ActorMethod<[string, boolean, boolean], boolean>,
   'downloadFileChunk' : ActorMethod<[string, bigint], [] | [Uint8Array]>,
+  'editFolder' : ActorMethod<
+    [string, boolean, Array<Principal>, string, Array<string>, string],
+    boolean
+  >,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getFileMetadata' : ActorMethod<[string], [] | [FileMetadata]>,
-  'getStorageQuota' : ActorMethod<
-    [],
-    { 'total' : bigint, 'used' : bigint, 'available' : bigint }
-  >,
+  'getFolderMetadata' : ActorMethod<[string], [] | [FolderMetadata]>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
-  'listAllUsersStorage' : ActorMethod<[], Array<[Principal, bigint, bigint]>>,
   'listFiles' : ActorMethod<[], Array<FileMetadata>>,
+  'listFilesByFolder' : ActorMethod<[[] | [string]], Array<FileMetadata>>,
+  'listFolders' : ActorMethod<[], Array<FolderMetadata>>,
+  'moveFolder' : ActorMethod<[string, [] | [string]], boolean>,
+  'renameFolder' : ActorMethod<[string, string], boolean>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
-  'setUserQuota' : ActorMethod<[Principal, bigint], undefined>,
   'uploadFileChunk' : ActorMethod<
-    [string, string, bigint, Uint8Array, bigint, bigint],
+    [string, string, bigint, Uint8Array, bigint, bigint, [] | [string]],
     [] | [string]
   >,
 }

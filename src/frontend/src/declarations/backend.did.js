@@ -33,7 +33,21 @@ export const FileMetadata = IDL.Record({
   'owner' : IDL.Principal,
   'name' : IDL.Text,
   'size' : IDL.Nat,
+  'folderId' : IDL.Opt(IDL.Text),
   'uploadedAt' : IDL.Nat,
+});
+export const FolderMetadata = IDL.Record({
+  'id' : IDL.Text,
+  'owner' : IDL.Principal,
+  'name' : IDL.Text,
+  'createdAt' : IDL.Nat,
+  'color' : IDL.Text,
+  'tags' : IDL.Vec(IDL.Text),
+  'description' : IDL.Text,
+  'updatedAt' : IDL.Nat,
+  'collaborators' : IDL.Vec(IDL.Principal),
+  'parentFolderId' : IDL.Opt(IDL.Text),
+  'isPublic' : IDL.Bool,
 });
 
 export const idlService = IDL.Service({
@@ -65,24 +79,43 @@ export const idlService = IDL.Service({
   '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-  'deleteFile' : IDL.Func([IDL.Text], [IDL.Bool], []),
+  'createFolder' : IDL.Func(
+      [
+        IDL.Text,
+        IDL.Opt(IDL.Text),
+        IDL.Bool,
+        IDL.Vec(IDL.Principal),
+        IDL.Text,
+        IDL.Vec(IDL.Text),
+        IDL.Text,
+      ],
+      [IDL.Text],
+      [],
+    ),
+  'deleteFolder' : IDL.Func([IDL.Text, IDL.Bool, IDL.Bool], [IDL.Bool], []),
   'downloadFileChunk' : IDL.Func(
       [IDL.Text, IDL.Nat],
       [IDL.Opt(IDL.Vec(IDL.Nat8))],
       ['query'],
     ),
+  'editFolder' : IDL.Func(
+      [
+        IDL.Text,
+        IDL.Bool,
+        IDL.Vec(IDL.Principal),
+        IDL.Text,
+        IDL.Vec(IDL.Text),
+        IDL.Text,
+      ],
+      [IDL.Bool],
+      [],
+    ),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getFileMetadata' : IDL.Func([IDL.Text], [IDL.Opt(FileMetadata)], ['query']),
-  'getStorageQuota' : IDL.Func(
-      [],
-      [
-        IDL.Record({
-          'total' : IDL.Nat,
-          'used' : IDL.Nat,
-          'available' : IDL.Nat,
-        }),
-      ],
+  'getFolderMetadata' : IDL.Func(
+      [IDL.Text],
+      [IDL.Opt(FolderMetadata)],
       ['query'],
     ),
   'getUserProfile' : IDL.Func(
@@ -91,16 +124,26 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
-  'listAllUsersStorage' : IDL.Func(
-      [],
-      [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Nat, IDL.Nat))],
+  'listFiles' : IDL.Func([], [IDL.Vec(FileMetadata)], ['query']),
+  'listFilesByFolder' : IDL.Func(
+      [IDL.Opt(IDL.Text)],
+      [IDL.Vec(FileMetadata)],
       ['query'],
     ),
-  'listFiles' : IDL.Func([], [IDL.Vec(FileMetadata)], ['query']),
+  'listFolders' : IDL.Func([], [IDL.Vec(FolderMetadata)], ['query']),
+  'moveFolder' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [IDL.Bool], []),
+  'renameFolder' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
-  'setUserQuota' : IDL.Func([IDL.Principal, IDL.Nat], [], []),
   'uploadFileChunk' : IDL.Func(
-      [IDL.Text, IDL.Text, IDL.Nat, IDL.Vec(IDL.Nat8), IDL.Nat, IDL.Nat],
+      [
+        IDL.Text,
+        IDL.Text,
+        IDL.Nat,
+        IDL.Vec(IDL.Nat8),
+        IDL.Nat,
+        IDL.Nat,
+        IDL.Opt(IDL.Text),
+      ],
       [IDL.Opt(IDL.Text)],
       [],
     ),
@@ -131,7 +174,21 @@ export const idlFactory = ({ IDL }) => {
     'owner' : IDL.Principal,
     'name' : IDL.Text,
     'size' : IDL.Nat,
+    'folderId' : IDL.Opt(IDL.Text),
     'uploadedAt' : IDL.Nat,
+  });
+  const FolderMetadata = IDL.Record({
+    'id' : IDL.Text,
+    'owner' : IDL.Principal,
+    'name' : IDL.Text,
+    'createdAt' : IDL.Nat,
+    'color' : IDL.Text,
+    'tags' : IDL.Vec(IDL.Text),
+    'description' : IDL.Text,
+    'updatedAt' : IDL.Nat,
+    'collaborators' : IDL.Vec(IDL.Principal),
+    'parentFolderId' : IDL.Opt(IDL.Text),
+    'isPublic' : IDL.Bool,
   });
   
   return IDL.Service({
@@ -163,11 +220,36 @@ export const idlFactory = ({ IDL }) => {
     '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-    'deleteFile' : IDL.Func([IDL.Text], [IDL.Bool], []),
+    'createFolder' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Opt(IDL.Text),
+          IDL.Bool,
+          IDL.Vec(IDL.Principal),
+          IDL.Text,
+          IDL.Vec(IDL.Text),
+          IDL.Text,
+        ],
+        [IDL.Text],
+        [],
+      ),
+    'deleteFolder' : IDL.Func([IDL.Text, IDL.Bool, IDL.Bool], [IDL.Bool], []),
     'downloadFileChunk' : IDL.Func(
         [IDL.Text, IDL.Nat],
         [IDL.Opt(IDL.Vec(IDL.Nat8))],
         ['query'],
+      ),
+    'editFolder' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Bool,
+          IDL.Vec(IDL.Principal),
+          IDL.Text,
+          IDL.Vec(IDL.Text),
+          IDL.Text,
+        ],
+        [IDL.Bool],
+        [],
       ),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
@@ -176,15 +258,9 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Opt(FileMetadata)],
         ['query'],
       ),
-    'getStorageQuota' : IDL.Func(
-        [],
-        [
-          IDL.Record({
-            'total' : IDL.Nat,
-            'used' : IDL.Nat,
-            'available' : IDL.Nat,
-          }),
-        ],
+    'getFolderMetadata' : IDL.Func(
+        [IDL.Text],
+        [IDL.Opt(FolderMetadata)],
         ['query'],
       ),
     'getUserProfile' : IDL.Func(
@@ -193,16 +269,26 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
-    'listAllUsersStorage' : IDL.Func(
-        [],
-        [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Nat, IDL.Nat))],
+    'listFiles' : IDL.Func([], [IDL.Vec(FileMetadata)], ['query']),
+    'listFilesByFolder' : IDL.Func(
+        [IDL.Opt(IDL.Text)],
+        [IDL.Vec(FileMetadata)],
         ['query'],
       ),
-    'listFiles' : IDL.Func([], [IDL.Vec(FileMetadata)], ['query']),
+    'listFolders' : IDL.Func([], [IDL.Vec(FolderMetadata)], ['query']),
+    'moveFolder' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [IDL.Bool], []),
+    'renameFolder' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
-    'setUserQuota' : IDL.Func([IDL.Principal, IDL.Nat], [], []),
     'uploadFileChunk' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Nat, IDL.Vec(IDL.Nat8), IDL.Nat, IDL.Nat],
+        [
+          IDL.Text,
+          IDL.Text,
+          IDL.Nat,
+          IDL.Vec(IDL.Nat8),
+          IDL.Nat,
+          IDL.Nat,
+          IDL.Opt(IDL.Text),
+        ],
         [IDL.Opt(IDL.Text)],
         [],
       ),

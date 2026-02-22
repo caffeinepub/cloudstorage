@@ -1,128 +1,193 @@
 {
   "kind": "build_request",
-  "title": "Implement periodic refresh, IC canister storage, and file previews",
-  "projectName": "CloudStorage",
-  "priority": "normal",
+  "title": "Build complete folder management system with nested folders and navigation",
+  "projectName": "Cloud Storage",
+  "priority": "high",
   "requirements": [
     {
       "id": "REQ-1",
-      "text": "Implement periodic polling mechanism in the frontend that automatically refreshes the file list every 3-5 seconds using React Query with refetchInterval",
-      "target": "frontend",
+      "text": "Implement backend folder hierarchy supporting unlimited nesting depth with parent-child relationships tracked via folderId field in folder metadata",
+      "target": "backend",
       "source": {
         "messageIds": [
-          "msg-3"
+          "msg-20"
         ],
         "quotes": [
-          "to implement periodic refresh/polling instead (e.g., files refresh every few seconds)"
+          "should users be able to create nested folders (folders within folders)"
         ]
       },
       "acceptanceCriteria": [
-        "File list automatically refreshes every few seconds without manual user interaction",
-        "Polling can be paused when user is inactive to save resources",
-        "Loading states are handled gracefully without disrupting user experience"
+        "Folders can be created with a parent folderId parameter",
+        "Folders with null or empty folderId are root-level folders",
+        "Backend query methods filter folders by parent folderId to retrieve children of a specific folder",
+        "Folder deletion handles nested children according to user choice (recursive delete or move to parent)"
       ]
     },
     {
       "id": "REQ-2",
-      "text": "Implement file storage in Internet Computer canister storage with chunking strategy to handle size limits, storing file metadata and binary data as Blob chunks in stable memory",
+      "text": "Add backend query method to retrieve folder path from root to current folder for breadcrumb display",
       "target": "backend",
       "source": {
         "messageIds": [
-          "msg-3"
+          "msg-20"
         ],
         "quotes": [
-          "use the Internet Computer's canister storage (which has size limits per canister and costs cycles"
+          "Should there be a \"back\" button, breadcrumbs showing the path"
         ]
       },
       "acceptanceCriteria": [
-        "Files are split into manageable chunks (e.g., 1-2MB per chunk) for storage",
-        "File metadata (name, size, type, owner, upload date) is stored separately from binary data",
-        "Chunks are reassembled correctly during download",
-        "Storage usage is tracked per user and globally"
+        "Method accepts a folderId and returns ordered array of folder objects from root to target",
+        "Array includes folder id, name, and parent relationship for each ancestor",
+        "Root folder (null parent) is included as first element"
       ]
     },
     {
       "id": "REQ-3",
-      "text": "Create backend API methods for file upload (chunked), download (chunk retrieval and assembly), listing files with metadata, and deleting files",
-      "target": "backend",
+      "text": "Implement folder navigation state management tracking current folderId in frontend, allowing users to navigate into folders by clicking them",
+      "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-3"
+          "msg-18"
+        ],
+        "quotes": [
+          "click on a each created folder - not change to there file display area"
         ]
       },
       "acceptanceCriteria": [
-        "uploadFileChunk accepts file chunks with metadata and stores them in stable memory",
-        "downloadFile retrieves and returns all chunks for a given file ID",
-        "listFiles returns array of file metadata for the authenticated user",
-        "deleteFile removes all chunks and metadata for a file"
+        "Clicking a folder updates the current folderId state",
+        "File display area shows only files belonging to the current folderId",
+        "Folder list shows only direct children of current folderId",
+        "Navigation state persists during component lifecycle"
       ]
     },
     {
       "id": "REQ-4",
-      "text": "Implement file preview functionality for TXT files (plain text display), images (PNG, JPG, GIF, SVG), videos (MP4, WebM), and documents (PDF) using browser-native rendering capabilities",
+      "text": "Add breadcrumb navigation component showing full folder path from root to current location with clickable links to navigate to any ancestor folder",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-3"
+          "msg-20"
         ],
         "quotes": [
-          "want previews for TXT, images, videos, and docs"
+          "Should there be a \"back\" button, breadcrumbs showing the path"
         ]
       },
       "acceptanceCriteria": [
-        "TXT files display content in a readable text viewer with syntax highlighting if applicable",
-        "Images render in an image viewer with zoom and pan controls",
-        "Videos play in a native HTML5 video player with standard controls",
-        "PDF documents render using browser's built-in PDF viewer or an embedded PDF renderer",
-        "Preview panel shows file type badge and fallback message for unsupported formats"
+        "Breadcrumbs display complete folder hierarchy from root to current folder",
+        "Each breadcrumb segment is clickable and navigates to that folder level",
+        "Breadcrumb separator visually indicates hierarchy (e.g., '/' or '>')",
+        "Current folder is highlighted or styled differently from ancestors"
       ]
     },
     {
       "id": "REQ-5",
-      "text": "Add periodic polling to the admin dashboard activity feed that refreshes every 5-10 seconds to show recent file operations and user actions",
+      "text": "Add back button that navigates to the parent folder of the current location",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-3"
+          "msg-20"
         ],
         "quotes": [
-          "Real-time activity feed"
+          "Should there be a \"back\" button, breadcrumbs showing the path"
         ]
       },
       "acceptanceCriteria": [
-        "Admin activity feed automatically updates with latest system events",
-        "Activity entries show timestamp, user, action type, and affected file/resource",
-        "Polling interval is configurable and can be adjusted based on admin preferences"
+        "Back button is visible when user is not at root level",
+        "Clicking back button navigates to parent folder",
+        "Back button is disabled or hidden when at root level",
+        "Back button includes appropriate icon (e.g., arrow left)"
       ]
     },
     {
       "id": "REQ-6",
-      "text": "Implement storage quota tracking and enforcement per user with visual indicators showing used vs. available storage",
+      "text": "Ensure file upload functionality works within any folder by passing current folderId to upload operation",
       "target": "both",
       "source": {
         "messageIds": [
-          "msg-2"
+          "msg-18"
+        ],
+        "quotes": [
+          "can be upload file in them area"
         ]
       },
       "acceptanceCriteria": [
-        "Backend tracks total storage used per user across all their files",
-        "Upload operations fail gracefully when user exceeds quota with clear error message",
-        "Frontend displays storage usage as percentage with visual progress bar",
-        "Admin dashboard allows setting and modifying per-user storage limits"
+        "File upload component accepts current folderId as parameter",
+        "Uploaded files are associated with the current folderId in metadata",
+        "Files uploaded in a folder only appear when viewing that specific folder",
+        "Upload progress and success messages indicate the target folder"
+      ]
+    },
+    {
+      "id": "REQ-7",
+      "text": "Ensure files are isolated to their specific folder location and only appear in the file display when that folder is actively selected",
+      "target": "both",
+      "source": {
+        "messageIds": [
+          "msg-16"
+        ],
+        "quotes": [
+          "should files only appear in the specific folder where they were uploaded"
+        ]
+      },
+      "acceptanceCriteria": [
+        "File queries filter by current folderId to show only files in that folder",
+        "Files uploaded to folder A do not appear when viewing folder B",
+        "Root-level files (no folderId) only appear at root level",
+        "Moving a file updates its folderId to the new location"
+      ]
+    },
+    {
+      "id": "REQ-8",
+      "text": "Fix folder creation in My Folder section to properly display newly created folders in the folder list immediately after creation",
+      "target": "both",
+      "source": {
+        "messageIds": [
+          "msg-14"
+        ],
+        "quotes": [
+          "When clicked on the \"My Folder\" section, not showing up the created folder in the file display area"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Creating a new folder triggers immediate cache invalidation and refetch of folder list",
+        "Newly created folder appears in the folder list without requiring page refresh",
+        "Folder creation mutation returns the created folder object for optimistic updates",
+        "Error states are handled and displayed if folder creation fails"
+      ]
+    },
+    {
+      "id": "REQ-9",
+      "text": "Maintain separate independent storage areas for My Files section (root-level files with no folder) and My Folder section (organized folder hierarchy)",
+      "target": "both",
+      "source": {
+        "messageIds": [
+          "msg-16"
+        ],
+        "quotes": [
+          "They are two complete different sections"
+        ]
+      },
+      "acceptanceCriteria": [
+        "My Files section displays only files with null or empty folderId",
+        "My Folder section displays folder hierarchy and files within folders",
+        "Files uploaded in My Files remain separate from My Folder contents",
+        "Navigation between sections is clear and maintains separate state"
       ]
     }
   ],
   "constraints": [
-    "Must use Internet Computer canister storage, not external storage services",
-    "Cannot use WebSockets or real-time features; must use polling instead",
-    "File chunking is required to work within IC canister size limits",
-    "All file previews must use browser-native rendering capabilities only"
+    "Use existing backend/main.mo single-actor architecture without creating additional backend files",
+    "Do not modify immutable frontend paths: frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, frontend/src/components/ui",
+    "Use React Query for all data fetching and mutations with proper cache invalidation",
+    "Follow existing file metadata structure with folderId field for folder association",
+    "Maintain existing folder color, visibility, and collaboration features from current implementation"
   ],
   "nonGoals": [
-    "Integration with external storage APIs like AWS S3 or Google Cloud Storage",
-    "Real-time synchronization using WebSockets or Server-Sent Events",
-    "Third-party preview services for complex document formats",
-    "Mobile native app development (focus on responsive web interface only)"
+    "Real-time collaboration or live updates to folder contents",
+    "Folder permissions separate from existing file permissions system",
+    "Folder templates or preset folder structures",
+    "Advanced search within folder hierarchy",
+    "Folder favorites or pinning functionality separate from file favorites"
   ],
   "imageRequirements": {
     "required": [],
