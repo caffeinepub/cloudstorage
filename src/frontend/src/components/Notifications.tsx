@@ -1,88 +1,134 @@
 import { useNotifications, useUnreadNotificationsCount, useMarkNotificationAsRead } from '../hooks/useQueries';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Bell, AlertTriangle, Share2, Activity, Info } from 'lucide-react';
+import { Bell, BellOff, HardDrive, Share2, Activity, Info, Check } from 'lucide-react';
+import { toast } from 'sonner';
+import type { Notification, NotificationType } from '../backend';
 
 export default function Notifications() {
-  const { data: notifications = [] } = useNotifications();
-  const { data: unreadCount = 0 } = useUnreadNotificationsCount();
+  const { data: notifications, isLoading } = useNotifications();
+  const { data: unreadCount } = useUnreadNotificationsCount();
   const markAsRead = useMarkNotificationAsRead();
 
-  const handleMarkAsRead = (notificationId: number) => {
-    markAsRead.mutate(notificationId);
-  };
-
-  const getIcon = (type: string) => {
-    switch (type) {
-      case 'storageWarning':
-        return <AlertTriangle className="h-5 w-5 text-warning" />;
-      case 'shareNotification':
-        return <Share2 className="h-5 w-5 text-blue-500" />;
-      case 'activityAlert':
-        return <Activity className="h-5 w-5 text-green-500" />;
-      default:
-        return <Info className="h-5 w-5 text-muted-foreground" />;
+  const handleMarkAsRead = async (notificationId: bigint) => {
+    try {
+      await markAsRead.mutateAsync(notificationId);
+    } catch (error) {
+      toast.error('Failed to mark notification as read');
     }
   };
 
-  if (notifications.length === 0) {
+  const getNotificationIcon = (type: NotificationType) => {
+    if (type.__kind__ === 'storageWarning') return HardDrive;
+    if (type.__kind__ === 'shareNotification') return Share2;
+    if (type.__kind__ === 'activityAlert') return Activity;
+    return Info;
+  };
+
+  const getNotificationMessage = (type: NotificationType): string => {
+    if (type.__kind__ === 'storageWarning') {
+      const { thresholdPercentage } = type.storageWarning;
+      return `Storage usage at ${thresholdPercentage}%`;
+    }
+    if (type.__kind__ === 'shareNotification') {
+      const { fileName, message } = type.shareNotification;
+      return `${fileName} - ${message}`;
+    }
+    if (type.__kind__ === 'activityAlert') {
+      const { fileName, activityType } = type.activityAlert;
+      return `${activityType}: ${fileName}`;
+    }
+    if (type.__kind__ === 'systemAnnouncement') {
+      const { title, content } = type.systemAnnouncement;
+      return `${title}: ${content}`;
+    }
+    return 'New notification';
+  };
+
+  const formatTimestamp = (timestamp: bigint): string => {
+    const now = Date.now() * 1_000_000;
+    const diff = now - Number(timestamp);
+    const seconds = Math.floor(diff / 1_000_000_000);
+    
+    if (seconds < 60) return 'Just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    return `${Math.floor(seconds / 86400)}d ago`;
+  };
+
+  if (isLoading) {
     return (
       <Card className="p-6">
-        <div className="text-center">
-          <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-          <h3 className="font-medium mb-1">No notifications</h3>
-          <p className="text-sm text-muted-foreground">You're all caught up!</p>
+        <h3 className="text-lg font-semibold mb-4">Notifications</h3>
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-16 bg-muted rounded-lg animate-pulse" />
+          ))}
+        </div>
+      </Card>
+    );
+  }
+
+  if (!notifications || notifications.length === 0) {
+    return (
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4">Notifications</h3>
+        <div className="flex flex-col items-center justify-center py-8 text-center">
+          <BellOff className="h-12 w-12 text-muted-foreground mb-3" />
+          <p className="text-sm text-muted-foreground">No notifications</p>
         </div>
       </Card>
     );
   }
 
   return (
-    <Card className="p-4">
+    <Card className="p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold flex items-center gap-2">
-          <Bell className="h-5 w-5" />
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          <Bell className="h-5 w-5 text-primary" />
           Notifications
-          {unreadCount > 0 && (
-            <Badge variant="destructive" className="ml-2">
-              {unreadCount}
-            </Badge>
-          )}
         </h3>
+        {unreadCount && Number(unreadCount) > 0 && (
+          <Badge variant="destructive">{Number(unreadCount)}</Badge>
+        )}
       </div>
-      <ScrollArea className="h-64">
-        <div className="space-y-3">
-          {notifications.map((notification) => (
-            <div
-              key={notification.id}
-              className={`p-3 rounded-lg border ${
-                notification.isRead ? 'bg-background' : 'bg-accent/50'
+      <div className="space-y-2 max-h-[400px] overflow-y-auto">
+        {notifications.map((notification) => {
+          const Icon = getNotificationIcon(notification.notificationType);
+          return (
+            <Card
+              key={notification.id.toString()}
+              className={`p-3 hover:shadow-sm transition-shadow ${
+                !notification.isRead ? 'bg-accent/20 border-primary/20' : ''
               }`}
             >
               <div className="flex items-start gap-3">
-                {getIcon(notification.type)}
+                <div className={`p-2 rounded-lg ${!notification.isRead ? 'bg-primary/10' : 'bg-muted'}`}>
+                  <Icon className={`h-4 w-4 ${!notification.isRead ? 'text-primary' : 'text-muted-foreground'}`} />
+                </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{notification.message}</p>
+                  <p className="text-sm font-medium">
+                    {getNotificationMessage(notification.notificationType)}
+                  </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {new Date(Number(notification.timestamp) / 1000000).toLocaleString()}
+                    {formatTimestamp(notification.timestamp)}
                   </p>
                 </div>
                 {!notification.isRead && (
                   <Button
-                    size="sm"
                     variant="ghost"
+                    size="sm"
                     onClick={() => handleMarkAsRead(notification.id)}
                   >
-                    Mark read
+                    <Check className="h-4 w-4" />
                   </Button>
                 )}
               </div>
-            </div>
-          ))}
-        </div>
-      </ScrollArea>
+            </Card>
+          );
+        })}
+      </div>
     </Card>
   );
 }

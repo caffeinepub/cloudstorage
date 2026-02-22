@@ -6,12 +6,7 @@ import { toast } from 'sonner';
 import { useUploadFile } from '../hooks/useQueries';
 import { Progress } from '@/components/ui/progress';
 
-interface FileUploadProps {
-  folderId?: string | null;
-  onComplete?: () => void;
-}
-
-export default function FileUpload({ folderId = null, onComplete }: FileUploadProps) {
+export default function FileUpload() {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -57,18 +52,14 @@ export default function FileUpload({ folderId = null, onComplete }: FileUploadPr
 
     for (const file of selectedFiles) {
       try {
-        await uploadFile.mutateAsync({ file, folderId });
-        const folderMsg = folderId ? ' to folder' : '';
-        toast.success(`${file.name} uploaded successfully${folderMsg}`);
+        await uploadFile.mutateAsync(file);
+        toast.success(`${file.name} uploaded successfully`);
       } catch (error) {
         toast.error(`Failed to upload ${file.name}`);
       }
     }
 
     setSelectedFiles([]);
-    if (onComplete) {
-      onComplete();
-    }
   };
 
   return (

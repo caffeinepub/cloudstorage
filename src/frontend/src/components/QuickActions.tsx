@@ -20,7 +20,7 @@ export default function QuickActions() {
     setIsUploading(true);
     try {
       for (let i = 0; i < files.length; i++) {
-        await uploadFileMutation.mutateAsync({ file: files[i], folderId: null });
+        await uploadFileMutation.mutateAsync(files[i]);
       }
       toast.success(`Successfully uploaded ${files.length} file(s)`);
     } catch (error) {
@@ -44,7 +44,7 @@ export default function QuickActions() {
       const blob = new Blob([content], { type: 'text/plain' });
       const file = new File([blob], fileName, { type: 'text/plain' });
       
-      await uploadFileMutation.mutateAsync({ file, folderId: null });
+      await uploadFileMutation.mutateAsync(file);
       toast.success('Text document created successfully!');
     } catch (error) {
       toast.error('Failed to create document. Please check your storage quota.');

@@ -13,7 +13,7 @@ export default function Dashboard() {
         <div>
           <h1 className="text-3xl font-bold mb-2">My Files</h1>
           <p className="text-muted-foreground">
-            Manage your root-level files securely in the cloud
+            Manage your files and folders securely in the cloud
           </p>
         </div>
         
@@ -45,7 +45,7 @@ export default function Dashboard() {
 
       <div className="space-y-4">
         {activeView === 'files' && <FileList />}
-        {activeView === 'upload' && <FileUpload folderId={null} />}
+        {activeView === 'upload' && <FileUpload />}
       </div>
     </div>
   );

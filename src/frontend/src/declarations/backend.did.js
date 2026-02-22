@@ -19,10 +19,43 @@ export const _CaffeineStorageRefillResult = IDL.Record({
   'success' : IDL.Opt(IDL.Bool),
   'topped_up_amount' : IDL.Opt(IDL.Nat),
 });
+export const NotificationType = IDL.Variant({
+  'storageWarning' : IDL.Record({
+    'thresholdPercentage' : IDL.Nat,
+    'usedStorage' : IDL.Nat,
+    'totalStorage' : IDL.Nat,
+  }),
+  'shareNotification' : IDL.Record({
+    'owner' : IDL.Principal,
+    'fileName' : IDL.Text,
+    'fileId' : IDL.Text,
+    'message' : IDL.Text,
+  }),
+  'activityAlert' : IDL.Record({
+    'activityType' : IDL.Text,
+    'fileName' : IDL.Text,
+    'fileId' : IDL.Text,
+    'timestamp' : IDL.Nat,
+  }),
+  'systemAnnouncement' : IDL.Record({
+    'isUrgent' : IDL.Bool,
+    'title' : IDL.Text,
+    'content' : IDL.Text,
+  }),
+});
 export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
   'guest' : IDL.Null,
+});
+export const RetentionPeriod = IDL.Nat;
+export const ActivityLog = IDL.Record({
+  'action' : IDL.Text,
+  'user' : IDL.Principal,
+  'fileName' : IDL.Text,
+  'fileId' : IDL.Text,
+  'timestamp' : IDL.Nat,
+  'details' : IDL.Text,
 });
 export const UserProfile = IDL.Record({
   'name' : IDL.Text,
@@ -33,21 +66,79 @@ export const FileMetadata = IDL.Record({
   'owner' : IDL.Principal,
   'name' : IDL.Text,
   'size' : IDL.Nat,
-  'folderId' : IDL.Opt(IDL.Text),
   'uploadedAt' : IDL.Nat,
 });
-export const FolderMetadata = IDL.Record({
-  'id' : IDL.Text,
+export const FavoriteFileInfo = IDL.Record({
   'owner' : IDL.Principal,
-  'name' : IDL.Text,
-  'createdAt' : IDL.Nat,
-  'color' : IDL.Text,
-  'tags' : IDL.Vec(IDL.Text),
-  'description' : IDL.Text,
-  'updatedAt' : IDL.Nat,
-  'collaborators' : IDL.Vec(IDL.Principal),
-  'parentFolderId' : IDL.Opt(IDL.Text),
-  'isPublic' : IDL.Bool,
+  'metadata' : IDL.Opt(FileMetadata),
+  'size' : IDL.Nat,
+  'fileName' : IDL.Text,
+  'fileId' : IDL.Text,
+  'addedAt' : IDL.Nat,
+});
+export const AccessedFileInfo = IDL.Record({
+  'lastAccessed' : IDL.Nat,
+  'owner' : IDL.Principal,
+  'metadata' : IDL.Opt(FileMetadata),
+  'fileName' : IDL.Text,
+  'fileId' : IDL.Text,
+  'relativeTime' : IDL.Text,
+  'accessCount' : IDL.Nat,
+});
+export const Notification = IDL.Record({
+  'id' : IDL.Nat,
+  'notificationType' : NotificationType,
+  'isRead' : IDL.Bool,
+  'toUser' : IDL.Principal,
+  'timestamp' : IDL.Nat,
+});
+export const RecentActivity = IDL.Record({
+  'action' : IDL.Text,
+  'user' : IDL.Principal,
+  'fileName' : IDL.Text,
+  'fileId' : IDL.Text,
+  'timestamp' : IDL.Nat,
+  'details' : IDL.Text,
+  'relativeTime' : IDL.Text,
+});
+export const SharePermissions = IDL.Record({
+  'canEdit' : IDL.Bool,
+  'canView' : IDL.Bool,
+  'canDownload' : IDL.Bool,
+});
+export const FileShare = IDL.Record({
+  'permissions' : SharePermissions,
+  'owner' : IDL.Principal,
+  'sharedAt' : IDL.Nat,
+  'sharedWith' : IDL.Principal,
+  'fileId' : IDL.Text,
+  'message' : IDL.Text,
+});
+export const SharedFileInfo = IDL.Record({
+  'ownerEmail' : IDL.Text,
+  'permissions' : SharePermissions,
+  'ownerName' : IDL.Text,
+  'owner' : IDL.Principal,
+  'sharedAt' : IDL.Nat,
+  'fileName' : IDL.Text,
+  'sharedWith' : IDL.Principal,
+  'fileId' : IDL.Text,
+  'message' : IDL.Text,
+});
+export const SmartSuggestion = IDL.Record({
+  'lastAccessed' : IDL.Nat,
+  'fileName' : IDL.Text,
+  'fileId' : IDL.Text,
+  'relativeTime' : IDL.Text,
+  'accessCount' : IDL.Nat,
+  'reason' : IDL.Text,
+});
+export const TrashMetadata = IDL.Record({
+  'originalPath' : IDL.Text,
+  'metadata' : FileMetadata,
+  'fileId' : IDL.Text,
+  'retentionPeriod' : RetentionPeriod,
+  'deletedAt' : IDL.Nat,
 });
 
 export const idlService = IDL.Service({
@@ -78,72 +169,102 @@ export const idlService = IDL.Service({
     ),
   '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
-  'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-  'createFolder' : IDL.Func(
-      [
-        IDL.Text,
-        IDL.Opt(IDL.Text),
-        IDL.Bool,
-        IDL.Vec(IDL.Principal),
-        IDL.Text,
-        IDL.Vec(IDL.Text),
-        IDL.Text,
-      ],
-      [IDL.Text],
+  'addFavorite' : IDL.Func([IDL.Text], [IDL.Bool], []),
+  'addNotification' : IDL.Func(
+      [IDL.Principal, NotificationType],
+      [IDL.Bool],
       [],
     ),
-  'deleteFolder' : IDL.Func([IDL.Text, IDL.Bool, IDL.Bool], [IDL.Bool], []),
+  'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'deleteExpiredTrash' : IDL.Func([], [IDL.Nat], []),
+  'deleteFile' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Opt(RetentionPeriod)],
+      [IDL.Bool],
+      [],
+    ),
   'downloadFileChunk' : IDL.Func(
       [IDL.Text, IDL.Nat],
       [IDL.Opt(IDL.Vec(IDL.Nat8))],
       ['query'],
     ),
-  'editFolder' : IDL.Func(
-      [
-        IDL.Text,
-        IDL.Bool,
-        IDL.Vec(IDL.Principal),
-        IDL.Text,
-        IDL.Vec(IDL.Text),
-        IDL.Text,
-      ],
-      [IDL.Bool],
-      [],
-    ),
+  'getActivityLogs' : IDL.Func([IDL.Nat], [IDL.Vec(ActivityLog)], ['query']),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getFavorites' : IDL.Func([], [IDL.Vec(FavoriteFileInfo)], ['query']),
   'getFileMetadata' : IDL.Func([IDL.Text], [IDL.Opt(FileMetadata)], ['query']),
-  'getFolderMetadata' : IDL.Func(
-      [IDL.Text],
-      [IDL.Opt(FolderMetadata)],
+  'getMostAccessedFiles' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Vec(AccessedFileInfo)],
       ['query'],
     ),
+  'getNotifications' : IDL.Func([], [IDL.Vec(Notification)], ['query']),
+  'getRecentActivities' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Vec(RecentActivity)],
+      ['query'],
+    ),
+  'getSharedFileInfo' : IDL.Func(
+      [IDL.Text, IDL.Principal],
+      [IDL.Opt(FileShare)],
+      ['query'],
+    ),
+  'getSharesReceived' : IDL.Func([], [IDL.Vec(SharedFileInfo)], ['query']),
+  'getSharesSent' : IDL.Func([], [IDL.Vec(FileShare)], ['query']),
+  'getSmartSuggestions' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Vec(SmartSuggestion)],
+      ['query'],
+    ),
+  'getStorageQuota' : IDL.Func(
+      [],
+      [
+        IDL.Record({
+          'total' : IDL.Nat,
+          'used' : IDL.Nat,
+          'available' : IDL.Nat,
+        }),
+      ],
+      ['query'],
+    ),
+  'getTrashRetentionPeriod' : IDL.Func([], [IDL.Nat], ['query']),
+  'getTrashStorageUsage' : IDL.Func([], [IDL.Nat], ['query']),
+  'getUnreadNotificationsCount' : IDL.Func([], [IDL.Nat], ['query']),
   'getUserProfile' : IDL.Func(
       [IDL.Principal],
       [IDL.Opt(UserProfile)],
       ['query'],
     ),
+  'getUserRetentionPeriod' : IDL.Func([IDL.Principal], [IDL.Nat], ['query']),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
-  'listFiles' : IDL.Func([], [IDL.Vec(FileMetadata)], ['query']),
-  'listFilesByFolder' : IDL.Func(
-      [IDL.Opt(IDL.Text)],
-      [IDL.Vec(FileMetadata)],
+  'isFavorite' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
+  'listAllUsersStorage' : IDL.Func(
+      [],
+      [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Nat, IDL.Nat))],
       ['query'],
     ),
-  'listFolders' : IDL.Func([], [IDL.Vec(FolderMetadata)], ['query']),
-  'moveFolder' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [IDL.Bool], []),
-  'renameFolder' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
+  'listFiles' : IDL.Func([], [IDL.Vec(FileMetadata)], ['query']),
+  'listTrashFiles' : IDL.Func(
+      [IDL.Opt(IDL.Principal)],
+      [IDL.Vec(TrashMetadata)],
+      ['query'],
+    ),
+  'markNotificationAsRead' : IDL.Func([IDL.Nat], [IDL.Bool], []),
+  'permanentlyDeleteFile' : IDL.Func([IDL.Text, IDL.Bool], [IDL.Bool], []),
+  'recordFileAccess' : IDL.Func([IDL.Text], [IDL.Bool], []),
+  'removeFavorite' : IDL.Func([IDL.Text], [IDL.Bool], []),
+  'restoreFile' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [IDL.Bool], []),
+  'revokeShare' : IDL.Func([IDL.Text, IDL.Principal], [IDL.Bool], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+  'setGlobalRetentionPeriod' : IDL.Func([RetentionPeriod], [], []),
+  'setUserQuota' : IDL.Func([IDL.Principal, IDL.Nat], [], []),
+  'setUserRetentionPeriod' : IDL.Func([IDL.Principal, RetentionPeriod], [], []),
+  'shareFile' : IDL.Func(
+      [IDL.Text, IDL.Principal, IDL.Bool, IDL.Bool, IDL.Bool, IDL.Text],
+      [IDL.Bool],
+      [],
+    ),
   'uploadFileChunk' : IDL.Func(
-      [
-        IDL.Text,
-        IDL.Text,
-        IDL.Nat,
-        IDL.Vec(IDL.Nat8),
-        IDL.Nat,
-        IDL.Nat,
-        IDL.Opt(IDL.Text),
-      ],
+      [IDL.Text, IDL.Text, IDL.Nat, IDL.Vec(IDL.Nat8), IDL.Nat, IDL.Nat],
       [IDL.Opt(IDL.Text)],
       [],
     ),
@@ -163,10 +284,43 @@ export const idlFactory = ({ IDL }) => {
     'success' : IDL.Opt(IDL.Bool),
     'topped_up_amount' : IDL.Opt(IDL.Nat),
   });
+  const NotificationType = IDL.Variant({
+    'storageWarning' : IDL.Record({
+      'thresholdPercentage' : IDL.Nat,
+      'usedStorage' : IDL.Nat,
+      'totalStorage' : IDL.Nat,
+    }),
+    'shareNotification' : IDL.Record({
+      'owner' : IDL.Principal,
+      'fileName' : IDL.Text,
+      'fileId' : IDL.Text,
+      'message' : IDL.Text,
+    }),
+    'activityAlert' : IDL.Record({
+      'activityType' : IDL.Text,
+      'fileName' : IDL.Text,
+      'fileId' : IDL.Text,
+      'timestamp' : IDL.Nat,
+    }),
+    'systemAnnouncement' : IDL.Record({
+      'isUrgent' : IDL.Bool,
+      'title' : IDL.Text,
+      'content' : IDL.Text,
+    }),
+  });
   const UserRole = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
     'guest' : IDL.Null,
+  });
+  const RetentionPeriod = IDL.Nat;
+  const ActivityLog = IDL.Record({
+    'action' : IDL.Text,
+    'user' : IDL.Principal,
+    'fileName' : IDL.Text,
+    'fileId' : IDL.Text,
+    'timestamp' : IDL.Nat,
+    'details' : IDL.Text,
   });
   const UserProfile = IDL.Record({ 'name' : IDL.Text, 'email' : IDL.Text });
   const FileMetadata = IDL.Record({
@@ -174,21 +328,79 @@ export const idlFactory = ({ IDL }) => {
     'owner' : IDL.Principal,
     'name' : IDL.Text,
     'size' : IDL.Nat,
-    'folderId' : IDL.Opt(IDL.Text),
     'uploadedAt' : IDL.Nat,
   });
-  const FolderMetadata = IDL.Record({
-    'id' : IDL.Text,
+  const FavoriteFileInfo = IDL.Record({
     'owner' : IDL.Principal,
-    'name' : IDL.Text,
-    'createdAt' : IDL.Nat,
-    'color' : IDL.Text,
-    'tags' : IDL.Vec(IDL.Text),
-    'description' : IDL.Text,
-    'updatedAt' : IDL.Nat,
-    'collaborators' : IDL.Vec(IDL.Principal),
-    'parentFolderId' : IDL.Opt(IDL.Text),
-    'isPublic' : IDL.Bool,
+    'metadata' : IDL.Opt(FileMetadata),
+    'size' : IDL.Nat,
+    'fileName' : IDL.Text,
+    'fileId' : IDL.Text,
+    'addedAt' : IDL.Nat,
+  });
+  const AccessedFileInfo = IDL.Record({
+    'lastAccessed' : IDL.Nat,
+    'owner' : IDL.Principal,
+    'metadata' : IDL.Opt(FileMetadata),
+    'fileName' : IDL.Text,
+    'fileId' : IDL.Text,
+    'relativeTime' : IDL.Text,
+    'accessCount' : IDL.Nat,
+  });
+  const Notification = IDL.Record({
+    'id' : IDL.Nat,
+    'notificationType' : NotificationType,
+    'isRead' : IDL.Bool,
+    'toUser' : IDL.Principal,
+    'timestamp' : IDL.Nat,
+  });
+  const RecentActivity = IDL.Record({
+    'action' : IDL.Text,
+    'user' : IDL.Principal,
+    'fileName' : IDL.Text,
+    'fileId' : IDL.Text,
+    'timestamp' : IDL.Nat,
+    'details' : IDL.Text,
+    'relativeTime' : IDL.Text,
+  });
+  const SharePermissions = IDL.Record({
+    'canEdit' : IDL.Bool,
+    'canView' : IDL.Bool,
+    'canDownload' : IDL.Bool,
+  });
+  const FileShare = IDL.Record({
+    'permissions' : SharePermissions,
+    'owner' : IDL.Principal,
+    'sharedAt' : IDL.Nat,
+    'sharedWith' : IDL.Principal,
+    'fileId' : IDL.Text,
+    'message' : IDL.Text,
+  });
+  const SharedFileInfo = IDL.Record({
+    'ownerEmail' : IDL.Text,
+    'permissions' : SharePermissions,
+    'ownerName' : IDL.Text,
+    'owner' : IDL.Principal,
+    'sharedAt' : IDL.Nat,
+    'fileName' : IDL.Text,
+    'sharedWith' : IDL.Principal,
+    'fileId' : IDL.Text,
+    'message' : IDL.Text,
+  });
+  const SmartSuggestion = IDL.Record({
+    'lastAccessed' : IDL.Nat,
+    'fileName' : IDL.Text,
+    'fileId' : IDL.Text,
+    'relativeTime' : IDL.Text,
+    'accessCount' : IDL.Nat,
+    'reason' : IDL.Text,
+  });
+  const TrashMetadata = IDL.Record({
+    'originalPath' : IDL.Text,
+    'metadata' : FileMetadata,
+    'fileId' : IDL.Text,
+    'retentionPeriod' : RetentionPeriod,
+    'deletedAt' : IDL.Nat,
   });
   
   return IDL.Service({
@@ -219,76 +431,110 @@ export const idlFactory = ({ IDL }) => {
       ),
     '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
-    'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-    'createFolder' : IDL.Func(
-        [
-          IDL.Text,
-          IDL.Opt(IDL.Text),
-          IDL.Bool,
-          IDL.Vec(IDL.Principal),
-          IDL.Text,
-          IDL.Vec(IDL.Text),
-          IDL.Text,
-        ],
-        [IDL.Text],
+    'addFavorite' : IDL.Func([IDL.Text], [IDL.Bool], []),
+    'addNotification' : IDL.Func(
+        [IDL.Principal, NotificationType],
+        [IDL.Bool],
         [],
       ),
-    'deleteFolder' : IDL.Func([IDL.Text, IDL.Bool, IDL.Bool], [IDL.Bool], []),
+    'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'deleteExpiredTrash' : IDL.Func([], [IDL.Nat], []),
+    'deleteFile' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Opt(RetentionPeriod)],
+        [IDL.Bool],
+        [],
+      ),
     'downloadFileChunk' : IDL.Func(
         [IDL.Text, IDL.Nat],
         [IDL.Opt(IDL.Vec(IDL.Nat8))],
         ['query'],
       ),
-    'editFolder' : IDL.Func(
-        [
-          IDL.Text,
-          IDL.Bool,
-          IDL.Vec(IDL.Principal),
-          IDL.Text,
-          IDL.Vec(IDL.Text),
-          IDL.Text,
-        ],
-        [IDL.Bool],
-        [],
-      ),
+    'getActivityLogs' : IDL.Func([IDL.Nat], [IDL.Vec(ActivityLog)], ['query']),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getFavorites' : IDL.Func([], [IDL.Vec(FavoriteFileInfo)], ['query']),
     'getFileMetadata' : IDL.Func(
         [IDL.Text],
         [IDL.Opt(FileMetadata)],
         ['query'],
       ),
-    'getFolderMetadata' : IDL.Func(
-        [IDL.Text],
-        [IDL.Opt(FolderMetadata)],
+    'getMostAccessedFiles' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(AccessedFileInfo)],
         ['query'],
       ),
+    'getNotifications' : IDL.Func([], [IDL.Vec(Notification)], ['query']),
+    'getRecentActivities' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(RecentActivity)],
+        ['query'],
+      ),
+    'getSharedFileInfo' : IDL.Func(
+        [IDL.Text, IDL.Principal],
+        [IDL.Opt(FileShare)],
+        ['query'],
+      ),
+    'getSharesReceived' : IDL.Func([], [IDL.Vec(SharedFileInfo)], ['query']),
+    'getSharesSent' : IDL.Func([], [IDL.Vec(FileShare)], ['query']),
+    'getSmartSuggestions' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(SmartSuggestion)],
+        ['query'],
+      ),
+    'getStorageQuota' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'total' : IDL.Nat,
+            'used' : IDL.Nat,
+            'available' : IDL.Nat,
+          }),
+        ],
+        ['query'],
+      ),
+    'getTrashRetentionPeriod' : IDL.Func([], [IDL.Nat], ['query']),
+    'getTrashStorageUsage' : IDL.Func([], [IDL.Nat], ['query']),
+    'getUnreadNotificationsCount' : IDL.Func([], [IDL.Nat], ['query']),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UserProfile)],
         ['query'],
       ),
+    'getUserRetentionPeriod' : IDL.Func([IDL.Principal], [IDL.Nat], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
-    'listFiles' : IDL.Func([], [IDL.Vec(FileMetadata)], ['query']),
-    'listFilesByFolder' : IDL.Func(
-        [IDL.Opt(IDL.Text)],
-        [IDL.Vec(FileMetadata)],
+    'isFavorite' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
+    'listAllUsersStorage' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Nat, IDL.Nat))],
         ['query'],
       ),
-    'listFolders' : IDL.Func([], [IDL.Vec(FolderMetadata)], ['query']),
-    'moveFolder' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [IDL.Bool], []),
-    'renameFolder' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
+    'listFiles' : IDL.Func([], [IDL.Vec(FileMetadata)], ['query']),
+    'listTrashFiles' : IDL.Func(
+        [IDL.Opt(IDL.Principal)],
+        [IDL.Vec(TrashMetadata)],
+        ['query'],
+      ),
+    'markNotificationAsRead' : IDL.Func([IDL.Nat], [IDL.Bool], []),
+    'permanentlyDeleteFile' : IDL.Func([IDL.Text, IDL.Bool], [IDL.Bool], []),
+    'recordFileAccess' : IDL.Func([IDL.Text], [IDL.Bool], []),
+    'removeFavorite' : IDL.Func([IDL.Text], [IDL.Bool], []),
+    'restoreFile' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [IDL.Bool], []),
+    'revokeShare' : IDL.Func([IDL.Text, IDL.Principal], [IDL.Bool], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+    'setGlobalRetentionPeriod' : IDL.Func([RetentionPeriod], [], []),
+    'setUserQuota' : IDL.Func([IDL.Principal, IDL.Nat], [], []),
+    'setUserRetentionPeriod' : IDL.Func(
+        [IDL.Principal, RetentionPeriod],
+        [],
+        [],
+      ),
+    'shareFile' : IDL.Func(
+        [IDL.Text, IDL.Principal, IDL.Bool, IDL.Bool, IDL.Bool, IDL.Text],
+        [IDL.Bool],
+        [],
+      ),
     'uploadFileChunk' : IDL.Func(
-        [
-          IDL.Text,
-          IDL.Text,
-          IDL.Nat,
-          IDL.Vec(IDL.Nat8),
-          IDL.Nat,
-          IDL.Nat,
-          IDL.Opt(IDL.Text),
-        ],
+        [IDL.Text, IDL.Text, IDL.Nat, IDL.Vec(IDL.Nat8), IDL.Nat, IDL.Nat],
         [IDL.Opt(IDL.Text)],
         [],
       ),

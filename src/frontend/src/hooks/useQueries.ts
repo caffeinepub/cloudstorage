@@ -3,79 +3,19 @@ import { useActor } from './useActor';
 import type { 
   UserProfile, 
   FileMetadata, 
-  UserRole
+  UserRole, 
+  RecentActivity,
+  FavoriteFileInfo,
+  SharedFileInfo,
+  Notification,
+  SmartSuggestion,
+  NotificationType,
+  TrashMetadata
 } from '../backend';
 import { Principal } from '@dfinity/principal';
 
-// Type alias for TrashItem (stub since backend doesn't have trash functionality yet)
-export type TrashItem = {
-  fileId: string;
-  metadata: FileMetadata;
-  deletedAt: bigint;
-  originalPath: string;
-  retentionPeriod: bigint;
-};
-
-// Type for recent activities
-export type RecentActivity = {
-  timestamp: bigint;
-  user: Principal;
-  action: string;
-  fileId: string;
-  fileName: string;
-  details: string;
-  relativeTime: string;
-};
-
-// Type for notifications
-export type Notification = {
-  id: number;
-  timestamp: bigint;
-  type: string;
-  isRead: boolean;
-  message: string;
-};
-
-// Type for favorite files
-export type FavoriteFileInfo = {
-  fileId: string;
-  fileName: string;
-  size: bigint;
-  addedAt: bigint;
-  metadata: FileMetadata | null;
-};
-
-// Type for smart suggestions
-export type SmartSuggestion = {
-  fileId: string;
-  fileName: string;
-  reason: string;
-  accessCount: number;
-  lastAccessed: bigint;
-  relativeTime: string;
-};
-
-// Type for shared files
-export type SharedFileInfo = {
-  fileId: string;
-  fileName: string;
-  owner: Principal;
-  ownerName: string;
-  sharedAt: bigint;
-  permissions: {
-    canView: boolean;
-    canEdit: boolean;
-    canDownload: boolean;
-  };
-};
-
-// Type for user storage info
-export type UserStorageInfo = {
-  user: Principal;
-  used: bigint;
-  quota: bigint;
-  userName: string;
-};
+// Re-export TrashMetadata from backend as TrashItem for consistency
+export type TrashItem = TrashMetadata;
 
 export function useGetCallerUserProfile() {
   const { actor, isFetching: actorFetching } = useActor();
@@ -129,12 +69,26 @@ export function useIsCallerAdmin() {
   const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<boolean>({
-    queryKey: ['isAdmin'],
+    queryKey: ['isCallerAdmin'],
     queryFn: async () => {
       if (!actor) throw new Error('Actor not available');
       return actor.isCallerAdmin();
     },
     enabled: !!actor && !actorFetching,
+  });
+}
+
+export function useGetStorageQuota() {
+  const { actor, isFetching: actorFetching } = useActor();
+
+  return useQuery({
+    queryKey: ['storageQuota'],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.getStorageQuota();
+    },
+    enabled: !!actor && !actorFetching,
+    refetchInterval: 5000,
   });
 }
 
@@ -148,32 +102,7 @@ export function useListFiles() {
       return actor.listFiles();
     },
     enabled: !!actor && !actorFetching,
-  });
-}
-
-export function useListFilesByFolder(folderId: string | null) {
-  const { actor, isFetching: actorFetching } = useActor();
-
-  return useQuery<FileMetadata[]>({
-    queryKey: ['filesByFolder', folderId],
-    queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.listFilesByFolder(folderId);
-    },
-    enabled: !!actor && !actorFetching,
-  });
-}
-
-export function useListRootFiles() {
-  const { actor, isFetching: actorFetching } = useActor();
-
-  return useQuery<FileMetadata[]>({
-    queryKey: ['rootFiles'],
-    queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.listFilesByFolder(null);
-    },
-    enabled: !!actor && !actorFetching,
+    refetchInterval: 3000,
   });
 }
 
@@ -182,28 +111,26 @@ export function useUploadFile() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ file, folderId }: { file: File; folderId?: string | null }) => {
+    mutationFn: async (file: File) => {
       if (!actor) throw new Error('Actor not available');
 
-      const fileId = `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const chunkSize = 1024 * 1024; // 1MB chunks
-      const totalChunks = Math.ceil(file.size / chunkSize);
+      const CHUNK_SIZE = 1024 * 1024;
+      const fileId = `${Date.now()}-${file.name}`;
+      const arrayBuffer = await file.arrayBuffer();
+      const totalChunks = Math.ceil(arrayBuffer.byteLength / CHUNK_SIZE);
 
       for (let i = 0; i < totalChunks; i++) {
-        const start = i * chunkSize;
-        const end = Math.min(start + chunkSize, file.size);
-        const chunk = file.slice(start, end);
-        const arrayBuffer = await chunk.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, arrayBuffer.byteLength);
+        const chunk = new Uint8Array(arrayBuffer.slice(start, end));
 
         const result = await actor.uploadFileChunk(
           fileId,
           file.name,
           BigInt(i),
-          uint8Array,
+          chunk,
           BigInt(totalChunks),
-          BigInt(file.size),
-          folderId || null
+          BigInt(arrayBuffer.byteLength)
         );
 
         if (!result) {
@@ -213,24 +140,11 @@ export function useUploadFile() {
 
       return fileId;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['files'] });
-      queryClient.invalidateQueries({ queryKey: ['filesByFolder', variables.folderId] });
-      queryClient.invalidateQueries({ queryKey: ['rootFiles'] });
+      queryClient.invalidateQueries({ queryKey: ['storageQuota'] });
+      queryClient.invalidateQueries({ queryKey: ['recentActivities'] });
     },
-  });
-}
-
-export function useGetFileMetadata(fileId: string | null) {
-  const { actor, isFetching: actorFetching } = useActor();
-
-  return useQuery<FileMetadata | null>({
-    queryKey: ['fileMetadata', fileId],
-    queryFn: async () => {
-      if (!actor || !fileId) return null;
-      return actor.getFileMetadata(fileId);
-    },
-    enabled: !!actor && !actorFetching && !!fileId,
   });
 }
 
@@ -238,15 +152,15 @@ export function useDownloadFile(fileId: string | null) {
   const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<Uint8Array | null>({
-    queryKey: ['fileData', fileId],
+    queryKey: ['fileDownload', fileId],
     queryFn: async () => {
       if (!actor || !fileId) return null;
 
       const metadata = await actor.getFileMetadata(fileId);
       if (!metadata) return null;
 
-      const chunkSize = 1024 * 1024;
-      const totalChunks = Math.ceil(Number(metadata.size) / chunkSize);
+      const CHUNK_SIZE = 1024 * 1024;
+      const totalChunks = Math.ceil(Number(metadata.size) / CHUNK_SIZE);
       const chunks: Uint8Array[] = [];
 
       for (let i = 0; i < totalChunks; i++) {
@@ -255,6 +169,8 @@ export function useDownloadFile(fileId: string | null) {
           chunks.push(chunk);
         }
       }
+
+      if (chunks.length === 0) return null;
 
       const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
       const result = new Uint8Array(totalLength);
@@ -270,201 +186,338 @@ export function useDownloadFile(fileId: string | null) {
   });
 }
 
-// Stub implementations for features not yet in backend
 export function useDeleteFile() {
+  const { actor } = useActor();
   const queryClient = useQueryClient();
+
   return useMutation({
-    mutationFn: async ({ fileId }: { fileId: string }) => {
-      console.log('Delete file stub:', fileId);
-      return true;
+    mutationFn: async ({
+      fileId,
+      originalPath,
+      customRetentionPeriod,
+    }: {
+      fileId: string;
+      originalPath: string;
+      customRetentionPeriod: bigint | null;
+    }) => {
+      if (!actor) throw new Error('Actor not available');
+      const result = await actor.deleteFile(fileId, originalPath, customRetentionPeriod);
+      if (!result) throw new Error('Delete failed');
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['files'] });
-      queryClient.invalidateQueries({ queryKey: ['filesByFolder'] });
-      queryClient.invalidateQueries({ queryKey: ['rootFiles'] });
+      queryClient.invalidateQueries({ queryKey: ['storageQuota'] });
+      queryClient.invalidateQueries({ queryKey: ['recentActivities'] });
+      queryClient.invalidateQueries({ queryKey: ['favorites'] });
+      queryClient.invalidateQueries({ queryKey: ['trashFiles'] });
     },
   });
 }
 
-export function useIsFavorite(fileId: string) {
-  return useQuery<boolean>({
-    queryKey: ['isFavorite', fileId],
-    queryFn: async () => false,
-  });
-}
+export function useGetTrashStorageUsage() {
+  const { actor, isFetching: actorFetching } = useActor();
 
-export function useAddFavorite() {
-  return useMutation({
-    mutationFn: async (fileId: string) => {
-      console.log('Add favorite stub:', fileId);
+  return useQuery<bigint>({
+    queryKey: ['trashStorageUsage'],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.getTrashStorageUsage();
     },
+    enabled: !!actor && !actorFetching,
+    refetchInterval: 5000,
   });
 }
 
-export function useRemoveFavorite() {
-  return useMutation({
-    mutationFn: async (fileId: string) => {
-      console.log('Remove favorite stub:', fileId);
-    },
-  });
-}
+export function useListTrashFiles(ownerFilter: Principal | null = null) {
+  const { actor, isFetching: actorFetching } = useActor();
 
-export function useRecordFileAccess() {
-  return useMutation({
-    mutationFn: async (fileId: string) => {
-      console.log('Record access stub:', fileId);
-    },
-  });
-}
-
-export function useFavorites() {
-  return useQuery<FavoriteFileInfo[]>({
-    queryKey: ['favorites'],
-    queryFn: async () => [],
-  });
-}
-
-export function useNotifications() {
-  return useQuery<Notification[]>({
-    queryKey: ['notifications'],
-    queryFn: async () => [],
-  });
-}
-
-export function useMarkNotificationAsRead() {
-  return useMutation({
-    mutationFn: async (notificationId: number) => {
-      console.log('Mark notification as read stub:', notificationId);
-    },
-  });
-}
-
-export function useUnreadNotificationsCount() {
-  return useQuery<number>({
-    queryKey: ['unreadNotificationsCount'],
-    queryFn: async () => 0,
-  });
-}
-
-export function useSmartSuggestions() {
-  return useQuery<SmartSuggestion[]>({
-    queryKey: ['smartSuggestions'],
-    queryFn: async () => [],
-  });
-}
-
-export function useSharesReceived() {
-  return useQuery<SharedFileInfo[]>({
-    queryKey: ['sharesReceived'],
-    queryFn: async () => [],
-  });
-}
-
-export function useRecentActivities() {
-  return useQuery<RecentActivity[]>({
-    queryKey: ['recentActivities'],
-    queryFn: async () => [],
-    refetchInterval: 8000,
-  });
-}
-
-export function useListTrashFiles(adminOwnerFilter?: Principal | null) {
   return useQuery<TrashItem[]>({
-    queryKey: ['trashFiles', adminOwnerFilter?.toString()],
-    queryFn: async () => [],
+    queryKey: ['trashFiles', ownerFilter?.toString() ?? 'all'],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.listTrashFiles(ownerFilter);
+    },
+    enabled: !!actor && !actorFetching,
+    refetchInterval: 5000,
   });
 }
 
 export function useRestoreFile() {
+  const { actor } = useActor();
   const queryClient = useQueryClient();
+
   return useMutation({
-    mutationFn: async ({ fileId, targetFolderId }: { fileId: string; targetFolderId?: string | null }) => {
-      console.log('Restore file stub:', fileId, targetFolderId);
+    mutationFn: async ({ fileId, newPath }: { fileId: string; newPath: string | null }) => {
+      if (!actor) throw new Error('Actor not available');
+      const result = await actor.restoreFile(fileId, newPath);
+      if (!result) throw new Error('Restore failed');
+      return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trashFiles'] });
       queryClient.invalidateQueries({ queryKey: ['files'] });
+      queryClient.invalidateQueries({ queryKey: ['storageQuota'] });
+      queryClient.invalidateQueries({ queryKey: ['recentActivities'] });
+      queryClient.invalidateQueries({ queryKey: ['trashFiles'] });
+      queryClient.invalidateQueries({ queryKey: ['trashStorageUsage'] });
     },
   });
 }
 
 export function usePermanentlyDeleteFile() {
+  const { actor } = useActor();
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({ fileId, secureWipe }: { fileId: string; secureWipe: boolean }) => {
-      console.log('Permanently delete file stub:', fileId, secureWipe);
+      if (!actor) throw new Error('Actor not available');
+      const result = await actor.permanentlyDeleteFile(fileId, secureWipe);
+      if (!result) throw new Error('Permanent delete failed');
+      return result;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['storageQuota'] });
+      queryClient.invalidateQueries({ queryKey: ['recentActivities'] });
       queryClient.invalidateQueries({ queryKey: ['trashFiles'] });
+      queryClient.invalidateQueries({ queryKey: ['trashStorageUsage'] });
     },
-  });
-}
-
-export function useGetStorageQuota() {
-  return useQuery({
-    queryKey: ['storageQuota'],
-    queryFn: async () => ({
-      used: BigInt(0),
-      total: BigInt(100000000),
-    }),
-  });
-}
-
-export function useGetTrashStorageUsage() {
-  return useQuery<bigint>({
-    queryKey: ['trashStorageUsage'],
-    queryFn: async () => BigInt(0),
-  });
-}
-
-export function useListAllUsersStorage() {
-  return useQuery<UserStorageInfo[]>({
-    queryKey: ['allUsersStorage'],
-    queryFn: async () => [],
-  });
-}
-
-export function useGetAllUsers() {
-  return useQuery<Principal[]>({
-    queryKey: ['allUsers'],
-    queryFn: async () => [],
-  });
-}
-
-export function useSetUserQuota() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ user, quota }: { user: Principal; quota: bigint }) => {
-      console.log('Set user quota stub:', user.toString(), quota);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['allUsersStorage'] });
-    },
-  });
-}
-
-export function useGetUserRetentionPeriod() {
-  return useQuery<bigint>({
-    queryKey: ['userRetentionPeriod'],
-    queryFn: async () => BigInt(30 * 24 * 60 * 60 * 1000000000),
   });
 }
 
 export function useGetTrashRetentionPeriod() {
+  const { actor, isFetching: actorFetching } = useActor();
+
   return useQuery<bigint>({
     queryKey: ['trashRetentionPeriod'],
-    queryFn: async () => BigInt(30 * 24 * 60 * 60 * 1000000000),
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.getTrashRetentionPeriod();
+    },
+    enabled: !!actor && !actorFetching,
   });
 }
 
 export function useSetUserRetentionPeriod() {
+  const { actor } = useActor();
   const queryClient = useQueryClient();
+
   return useMutation({
-    mutationFn: async ({ user, period }: { user: Principal; period: bigint }) => {
-      console.log('Set user retention period stub:', user.toString(), period);
+    mutationFn: async ({ user, retentionPeriod }: { user: Principal; retentionPeriod: bigint }) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.setUserRetentionPeriod(user, retentionPeriod);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['userRetentionPeriod'] });
+      queryClient.invalidateQueries({ queryKey: ['trashRetentionPeriod'] });
+    },
+  });
+}
+
+export function useGetActivityLogs(limit: bigint) {
+  const { actor, isFetching: actorFetching } = useActor();
+
+  return useQuery({
+    queryKey: ['activityLogs', limit.toString()],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.getActivityLogs(limit);
+    },
+    enabled: !!actor && !actorFetching,
+  });
+}
+
+export function useRecentActivities() {
+  const { actor, isFetching: actorFetching } = useActor();
+
+  return useQuery<RecentActivity[]>({
+    queryKey: ['recentActivities'],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.getRecentActivities(10n);
+    },
+    enabled: !!actor && !actorFetching,
+    refetchInterval: 8000,
+    refetchIntervalInBackground: true,
+    staleTime: 0,
+  });
+}
+
+export function useListAllUsersStorage() {
+  const { actor, isFetching: actorFetching } = useActor();
+
+  return useQuery<[Principal, bigint, bigint][]>({
+    queryKey: ['allUsersStorage'],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.listAllUsersStorage();
+    },
+    enabled: !!actor && !actorFetching,
+  });
+}
+
+export function useSetUserQuota() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ user, quota }: { user: Principal; quota: bigint }) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.setUserQuota(user, quota);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['allUsersStorage'] });
+      queryClient.invalidateQueries({ queryKey: ['storageQuota'] });
+    },
+  });
+}
+
+// Favorites
+export function useIsFavorite(fileId: string | null) {
+  const { actor, isFetching: actorFetching } = useActor();
+
+  return useQuery<boolean>({
+    queryKey: ['isFavorite', fileId],
+    queryFn: async () => {
+      if (!actor || !fileId) return false;
+      return actor.isFavorite(fileId);
+    },
+    enabled: !!actor && !actorFetching && !!fileId,
+  });
+}
+
+export function useAddFavorite() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (fileId: string) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.addFavorite(fileId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['favorites'] });
+      queryClient.invalidateQueries({ queryKey: ['isFavorite'] });
+    },
+  });
+}
+
+export function useRemoveFavorite() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (fileId: string) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.removeFavorite(fileId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['favorites'] });
+      queryClient.invalidateQueries({ queryKey: ['isFavorite'] });
+    },
+  });
+}
+
+export function useFavorites() {
+  const { actor, isFetching: actorFetching } = useActor();
+
+  return useQuery<FavoriteFileInfo[]>({
+    queryKey: ['favorites'],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.getFavorites();
+    },
+    enabled: !!actor && !actorFetching,
+    staleTime: 5000,
+  });
+}
+
+// Shared Files
+export function useSharesReceived() {
+  const { actor, isFetching: actorFetching } = useActor();
+
+  return useQuery<SharedFileInfo[]>({
+    queryKey: ['sharesReceived'],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.getSharesReceived();
+    },
+    enabled: !!actor && !actorFetching,
+    staleTime: 5000,
+  });
+}
+
+// Notifications
+export function useNotifications() {
+  const { actor, isFetching: actorFetching } = useActor();
+
+  return useQuery<Notification[]>({
+    queryKey: ['notifications'],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.getNotifications();
+    },
+    enabled: !!actor && !actorFetching,
+    refetchInterval: 10000,
+    refetchIntervalInBackground: true,
+  });
+}
+
+export function useUnreadNotificationsCount() {
+  const { actor, isFetching: actorFetching } = useActor();
+
+  return useQuery<bigint>({
+    queryKey: ['unreadNotificationsCount'],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.getUnreadNotificationsCount();
+    },
+    enabled: !!actor && !actorFetching,
+    refetchInterval: 10000,
+    refetchIntervalInBackground: true,
+  });
+}
+
+export function useMarkNotificationAsRead() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (notificationId: bigint) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.markNotificationAsRead(notificationId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['unreadNotificationsCount'] });
+    },
+  });
+}
+
+// Smart Suggestions
+export function useSmartSuggestions() {
+  const { actor, isFetching: actorFetching } = useActor();
+
+  return useQuery<SmartSuggestion[]>({
+    queryKey: ['smartSuggestions'],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.getSmartSuggestions(10n);
+    },
+    enabled: !!actor && !actorFetching,
+    staleTime: 60000,
+  });
+}
+
+export function useRecordFileAccess() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (fileId: string) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.recordFileAccess(fileId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['smartSuggestions'] });
     },
   });
 }

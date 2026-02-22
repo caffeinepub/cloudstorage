@@ -64,10 +64,10 @@ export default function FileSortDropdown({ sortBy, sortOrder, onSortChange }: Fi
         ))}
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onClick={() => onSortChange('date')}
+          onClick={() => onSortChange(null)}
           className="cursor-pointer text-muted-foreground"
         >
-          Reset to Default
+          Clear Sort
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

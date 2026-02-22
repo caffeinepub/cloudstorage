@@ -41,22 +41,22 @@ export default function FileFilterDropdown({
 }: FileFilterDropdownProps) {
   const handleDateStartChange = (value: string) => {
     const timestamp = value ? new Date(value).getTime() : null;
-    onDateRangeChange(timestamp, filters.dateEnd);
+    onDateRangeChange(timestamp, filters.dateRange.end);
   };
 
   const handleDateEndChange = (value: string) => {
     const timestamp = value ? new Date(value).getTime() : null;
-    onDateRangeChange(filters.dateStart, timestamp);
+    onDateRangeChange(filters.dateRange.start, timestamp);
   };
 
   const handleSizeMinChange = (value: string) => {
-    const bytes = value ? parseFloat(value) * 1024 * 1024 : null;
-    onSizeRangeChange(bytes, filters.sizeMax);
+    const bytes = value ? parseFloat(value) * 1024 * 1024 : null; // Convert MB to bytes
+    onSizeRangeChange(bytes, filters.sizeRange.max);
   };
 
   const handleSizeMaxChange = (value: string) => {
-    const bytes = value ? parseFloat(value) * 1024 * 1024 : null;
-    onSizeRangeChange(filters.sizeMin, bytes);
+    const bytes = value ? parseFloat(value) * 1024 * 1024 : null; // Convert MB to bytes
+    onSizeRangeChange(filters.sizeRange.min, bytes);
   };
 
   const formatDateForInput = (timestamp: number | null): string => {
@@ -104,11 +104,11 @@ export default function FileFilterDropdown({
                 id="name-filter"
                 type="text"
                 placeholder="Search by name..."
-                value={filters.name}
+                value={filters.nameFilter}
                 onChange={(e) => onNameFilterChange(e.target.value)}
                 className="h-8"
               />
-              {filters.name && (
+              {filters.nameFilter && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -126,17 +126,17 @@ export default function FileFilterDropdown({
             <Label htmlFor="type-filter" className="text-xs font-medium">
               File Type
             </Label>
-            <Select value={filters.type} onValueChange={onTypeFilterChange}>
+            <Select value={filters.typeFilter} onValueChange={onTypeFilterChange}>
               <SelectTrigger id="type-filter" className="h-8">
                 <SelectValue placeholder="All types" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Types</SelectItem>
-                <SelectItem value="png">PNG</SelectItem>
-                <SelectItem value="jpg">JPG</SelectItem>
-                <SelectItem value="pdf">PDF</SelectItem>
-                <SelectItem value="txt">TXT</SelectItem>
-                <SelectItem value="mp4">MP4</SelectItem>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="image">Images</SelectItem>
+                <SelectItem value="video">Videos</SelectItem>
+                <SelectItem value="document">Documents</SelectItem>
+                <SelectItem value="audio">Audio</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -152,7 +152,7 @@ export default function FileFilterDropdown({
                 <Input
                   id="date-start"
                   type="date"
-                  value={formatDateForInput(filters.dateStart)}
+                  value={formatDateForInput(filters.dateRange.start)}
                   onChange={(e) => handleDateStartChange(e.target.value)}
                   className="h-8"
                 />
@@ -164,7 +164,7 @@ export default function FileFilterDropdown({
                 <Input
                   id="date-end"
                   type="date"
-                  value={formatDateForInput(filters.dateEnd)}
+                  value={formatDateForInput(filters.dateRange.end)}
                   onChange={(e) => handleDateEndChange(e.target.value)}
                   className="h-8"
                 />
@@ -186,7 +186,7 @@ export default function FileFilterDropdown({
                   placeholder="0"
                   step="0.1"
                   min="0"
-                  value={formatSizeForInput(filters.sizeMin)}
+                  value={formatSizeForInput(filters.sizeRange.min)}
                   onChange={(e) => handleSizeMinChange(e.target.value)}
                   className="h-8"
                 />
@@ -201,7 +201,7 @@ export default function FileFilterDropdown({
                   placeholder="∞"
                   step="0.1"
                   min="0"
-                  value={formatSizeForInput(filters.sizeMax)}
+                  value={formatSizeForInput(filters.sizeRange.max)}
                   onChange={(e) => handleSizeMaxChange(e.target.value)}
                   className="h-8"
                 />

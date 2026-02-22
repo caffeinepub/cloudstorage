@@ -7,7 +7,6 @@ import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import Settings from './pages/Settings';
 import Trash from './pages/Trash';
-import FoldersPage from './pages/FoldersPage';
 import LoginPage from './pages/LoginPage';
 import ProfileSetup from './components/ProfileSetup';
 import { useGetCallerUserProfile } from './hooks/useQueries';
@@ -29,12 +28,6 @@ const dashboardRoute = createRoute({
   component: Dashboard,
 });
 
-const foldersRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/folders',
-  component: FoldersPage,
-});
-
 const adminRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin',
@@ -53,7 +46,7 @@ const trashRoute = createRoute({
   component: Trash,
 });
 
-const routeTree = rootRoute.addChildren([homeRoute, dashboardRoute, foldersRoute, adminRoute, settingsRoute, trashRoute]);
+const routeTree = rootRoute.addChildren([homeRoute, dashboardRoute, adminRoute, settingsRoute, trashRoute]);
 
 const router = createRouter({ routeTree });
 
