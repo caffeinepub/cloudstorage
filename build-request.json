@@ -1,0 +1,131 @@
+{
+  "kind": "build_request",
+  "title": "Add Pagination to My Files, Shared, Trash, and Recent Sections",
+  "projectName": "CloudStorage",
+  "priority": "normal",
+  "requirements": [
+    {
+      "id": "REQ-1",
+      "text": "Create a reusable Pagination component that renders: a user-selectable items-per-page dropdown (options: 10, 25, 50, 100) defaulting to 10; page number buttons; Previous and Next buttons; First and Last page shortcut buttons; a total items and total pages display; and a current range indicator (e.g., 'Showing 21-40 of 356 items'). The selected items-per-page value must NOT be persisted and resets to 10 each time the page or section is loaded.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-user-pagination"
+        ],
+        "quotes": [
+          "Display a limited number of items per page (e.g., 10, 25, 50, 100 items per page)",
+          "User-selectable items-per-page dropdown",
+          "Page number navigation (1, 2, 3)",
+          "Previous and Next buttons",
+          "First and Last page shortcut buttons",
+          "Display total number of items and total pages",
+          "Show current range indicator",
+          "default: 10",
+          "reset to the default each time"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Pagination component renders items-per-page dropdown with options 10, 25, 50, 100",
+        "Default items-per-page is 10 on every fresh load",
+        "Items-per-page selection is not persisted to localStorage or sessionStorage",
+        "Page number buttons show the correct range of pages",
+        "Previous, Next, First, and Last buttons are present and functional",
+        "First and Last buttons are disabled when already on the first or last page respectively",
+        "Previous button is disabled on the first page; Next button is disabled on the last page",
+        "Range indicator displays correctly (e.g., 'Showing 1-10 of 45 items')",
+        "Total items count and total pages count are displayed"
+      ]
+    },
+    {
+      "id": "REQ-2",
+      "text": "Apply the reusable Pagination component to the My Files section (Dashboard page and FileList component). All file and folder entries in the current view must be paginated using the shared component.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-user-pagination"
+        ],
+        "quotes": [
+          "My Files section"
+        ]
+      },
+      "acceptanceCriteria": [
+        "My Files section shows at most the selected items-per-page count of entries at a time",
+        "Pagination controls appear below the file and folder list",
+        "Navigating pages correctly slices the displayed items",
+        "Changing items-per-page resets to page 1"
+      ]
+    },
+    {
+      "id": "REQ-3",
+      "text": "Apply the reusable Pagination component to the Shared section, covering both the Shared With Me and Shared By Me sub-sections independently. Each sub-section maintains its own pagination state.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-user-pagination"
+        ],
+        "quotes": [
+          "Shared section (Shared With Me / Shared By Me)"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Shared With Me sub-section has its own independent pagination controls",
+        "Shared By Me sub-section has its own independent pagination controls",
+        "Each sub-section resets to page 1 when items-per-page is changed",
+        "Range indicator is accurate per sub-section"
+      ]
+    },
+    {
+      "id": "REQ-4",
+      "text": "Apply the reusable Pagination component to the Trash section, covering both the Files and Folders tabs independently. Each tab maintains its own pagination state.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-user-pagination"
+        ],
+        "quotes": [
+          "Trash section (Files / Folder)"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Trash Files tab has its own independent pagination controls",
+        "Trash Folders tab has its own independent pagination controls",
+        "Switching tabs does not carry over the page number from the other tab",
+        "Bulk select operations work correctly with paginated views"
+      ]
+    },
+    {
+      "id": "REQ-5",
+      "text": "Apply the reusable Pagination component to the Recent section (Recent page). All recently uploaded file entries must be paginated using the shared component.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-user-pagination"
+        ],
+        "quotes": [
+          "Recent section"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Recent section shows at most the selected items-per-page count of entries at a time",
+        "Pagination controls appear below the recent files list",
+        "Navigating pages correctly slices the displayed items",
+        "Changing items-per-page resets to page 1"
+      ]
+    }
+  ],
+  "constraints": [
+    "Default items-per-page must be 10 and must NOT be persisted across sessions or page refreshes — it resets every time.",
+    "Do not modify any files listed in frontend.immutablePaths.",
+    "All pagination is purely client-side; do not change backend query signatures or add backend pagination parameters."
+  ],
+  "nonGoals": [
+    "Server-side or backend pagination",
+    "Persisting the selected items-per-page value in localStorage, sessionStorage, or any other storage",
+    "Adding pagination to any section not listed such as the Home dashboard or Admin Dashboard",
+    "Changing the backend data model or API"
+  ],
+  "imageRequirements": {
+    "required": [],
+    "edits": []
+  }
+}

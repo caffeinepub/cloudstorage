@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "1.0.0",
+  "projectStateVersion": 3,
+  "summary": "File manager app (draft v33) with My Files, Shared (Shared With Me / Shared By Me), Trash (Files / Folders), and Recent sections. Adding pagination feature across all four sections.",
+  "architectural_notes": [],
+  "known_issues": [],
+  "isFixRequest": false,
+  "existing_features": [
+    {
+      "id": "feature-create-a-reusable-pagination-component-that-renders-a-user-selectable-items-per-page-dropdown-options-10-25-50-100-defaulting-to-10-page-number-buttons-previous-and-next-buttons-first-and-last-page-shortcut-buttons-a-total-items-and-total-pages-display-and-a-current-range-indicator-e-g-showing-21-40-of-356-items-the-selected-items-per-page-value-must-not-be-persisted-and-resets-to-10-each-time-the-page-or-section-is-loaded",
+      "title": "Create a reusable Pagination component that renders: a user-selectable items-per-page dropdown (options: 10, 25, 50, 100) defaulting to 10; page number buttons; Previous and Next buttons; First and Last page shortcut buttons; a total items and total pages display; and a current range indicator (e.g., 'Showing 21-40 of 356 items'). The selected items-per-page value must NOT be persisted and resets to 10 each time the page or section is loaded.",
+      "reqIds": [
+        "REQ-1"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-apply-the-reusable-pagination-component-to-the-my-files-section-dashboard-page-and-filelist-component-all-file-and-folder-entries-in-the-current-view-must-be-paginated-using-the-shared-component",
+      "title": "Apply the reusable Pagination component to the My Files section (Dashboard page and FileList component). All file and folder entries in the current view must be paginated using the shared component.",
+      "reqIds": [
+        "REQ-2"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-apply-the-reusable-pagination-component-to-the-shared-section-covering-both-the-shared-with-me-and-shared-by-me-sub-sections-independently-each-sub-section-maintains-its-own-pagination-state",
+      "title": "Apply the reusable Pagination component to the Shared section, covering both the Shared With Me and Shared By Me sub-sections independently. Each sub-section maintains its own pagination state.",
+      "reqIds": [
+        "REQ-3"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-apply-the-reusable-pagination-component-to-the-trash-section-covering-both-the-files-and-folders-tabs-independently-each-tab-maintains-its-own-pagination-state",
+      "title": "Apply the reusable Pagination component to the Trash section, covering both the Files and Folders tabs independently. Each tab maintains its own pagination state.",
+      "reqIds": [
+        "REQ-4"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-apply-the-reusable-pagination-component-to-the-recent-section-recent-page-all-recently-uploaded-file-entries-must-be-paginated-using-the-shared-component",
+      "title": "Apply the reusable Pagination component to the Recent section (Recent page). All recently uploaded file entries must be paginated using the shared component.",
+      "reqIds": [
+        "REQ-5"
+      ],
+      "version": 1
+    }
+  ],
+  "new_feature_requests": [
+    {
+      "id": "AR-1",
+      "summary": "Add pagination to My Files, Shared (With Me / By Me), Trash (Files / Folders), and Recent sections with default 10 items/page, user-selectable dropdown (10/25/50/100), page number nav, prev/next, first/last buttons, total items/pages display, and current range indicator. Settings reset to default each session.",
+      "reqIds": [],
+      "status": "pending"
+    }
+  ],
+  "gameProjectType": "none",
+  "projectName": "CloudStorage",
+  "clarification_mode": "instant",
+  "clarification_rounds": 0
+}
