@@ -49,7 +49,7 @@ import {
 } from '../hooks/useQueries';
 import { usePagination } from '../hooks/usePagination';
 import { toast } from 'sonner';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 
 type SortColumn = 'name' | 'deletedAt' | 'size' | 'owner' | 'retention' | 'type';
 type SortDirection = 'asc' | 'desc';
@@ -84,10 +84,10 @@ export default function Trash() {
 
   const { data: isAdmin } = useIsCallerAdmin();
   const { data: trashFiles = [], isLoading: filesLoading } = useListTrashFiles(
-    isAdmin ? adminOwnerFilter : null
+    isAdmin ? adminOwnerFilter : null,
   );
   const { data: trashFolders = [], isLoading: foldersLoading } = useListTrashFolders(
-    isAdmin ? adminOwnerFilter : null
+    isAdmin ? adminOwnerFilter : null,
   );
   const restoreFileMutation = useRestoreFile();
   const restoreFolderMutation = useRestoreFolder();
@@ -101,7 +101,7 @@ export default function Trash() {
   const isLoading = filesLoading || foldersLoading;
 
   // Separate items by type
-  const fileItems = useMemo(() => {
+  const fileItems = useMemo<UnifiedTrashItem[]>(() => {
     return (trashFiles || []).map((file) => ({
       id: file.fileId,
       type: 'file' as TrashItemType,
@@ -115,7 +115,7 @@ export default function Trash() {
     }));
   }, [trashFiles]);
 
-  const folderItems = useMemo(() => {
+  const folderItems = useMemo<UnifiedTrashItem[]>(() => {
     return (trashFolders || []).map((folder) => ({
       id: folder.folder.id,
       type: 'folder' as TrashItemType,
@@ -150,7 +150,7 @@ export default function Trash() {
       }));
       setFilteredItems(mapped);
     },
-    []
+    [],
   );
 
   // Initialize filtered items when tab changes; also reset pagination and selection
@@ -318,11 +318,10 @@ export default function Trash() {
         if (item.type === 'file') {
           await restoreFileMutation.mutateAsync({ fileId: item.id, newPath });
         } else {
-          await restoreFolderMutation.mutateAsync({ folderId: item.id, newPath });
+          await restoreFolderMutation.mutateAsync(item.id);
         }
       }
-      const itemType =
-        itemsToRestore.length === 1 ? itemsToRestore[0].type : 'item';
+      const itemType = itemsToRestore.length === 1 ? itemsToRestore[0].type : 'item';
       toast.success(`${itemsToRestore.length} ${itemType}(s) restored successfully`);
       setSelectedItemIds(new Set());
       setRestoreDialogOpen(false);
@@ -402,8 +401,9 @@ export default function Trash() {
     .filter((i) => i.type === 'file' && i.fileData)
     .map((i) => i.fileData!);
 
-  const trashFolderItemsToDelete: UnifiedTrashItem[] = itemsToDelete.filter(
-    (i) => i.type === 'folder'
+  // Folder items to delete as UnifiedTrashItem[]
+  const folderItemsToDelete: UnifiedTrashItem[] = itemsToDelete.filter(
+    (i) => i.type === 'folder',
   );
 
   return (
@@ -474,7 +474,7 @@ export default function Trash() {
           </Button>
         </div>
 
-        <div className="flex-shrink-0">
+        <div className="shrink-0">
           <TrashStorageIndicator />
         </div>
       </div>
@@ -538,7 +538,7 @@ export default function Trash() {
                     <SortButton column="owner">Owner</SortButton>
                   </TableHead>
                 )}
-                <TableHead className="w-12"></TableHead>
+                <TableHead className="w-12">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -546,9 +546,9 @@ export default function Trash() {
                 <TableRow>
                   <TableCell
                     colSpan={isAdmin ? 8 : 7}
-                    className="text-center py-8 text-muted-foreground"
+                    className="text-center py-12 text-muted-foreground"
                   >
-                    No {activeTab} in trash
+                    {activeTab === 'files' ? 'No files in trash' : 'No folders in trash'}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -563,26 +563,24 @@ export default function Trash() {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {getItemIcon(item)}
-                        <span className="truncate max-w-xs" title={item.name}>
-                          {item.name}
-                        </span>
+                        <span className="font-medium truncate max-w-[200px]">{item.name}</span>
                       </div>
                     </TableCell>
-                    <TableCell>{formatDate(item.deletedAt)}</TableCell>
-                    <TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatDate(item.deletedAt)}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
                       {calculateExpiryDate(item.deletedAt, item.retentionPeriod)}
                     </TableCell>
-                    <TableCell>{formatSize(item.size)}</TableCell>
-                    <TableCell>
-                      <span className="truncate max-w-xs text-sm text-muted-foreground">
-                        {item.originalPath || '/'}
-                      </span>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatSize(item.size)}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground truncate max-w-[150px]">
+                      {item.originalPath}
                     </TableCell>
                     {isAdmin && (
-                      <TableCell>
-                        <span className="text-xs text-muted-foreground truncate max-w-[100px] block">
-                          {item.owner.toString().slice(0, 12)}...
-                        </span>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {item.owner.toString().slice(0, 10)}…
                       </TableCell>
                     )}
                     <TableCell>
@@ -598,8 +596,8 @@ export default function Trash() {
                             Restore
                           </DropdownMenuItem>
                           <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
                             onClick={() => handleSingleDelete(item)}
-                            className="text-destructive"
                           >
                             <Trash2 className="mr-2 h-4 w-4" />
                             Delete Permanently
@@ -614,19 +612,16 @@ export default function Trash() {
           </Table>
         </Card>
 
-        {/* Pagination controls */}
-        {sortedItems.length > 0 && (
-          <PaginationControls
-            totalItems={sortedItems.length}
-            currentPage={activePagination.currentPage}
-            itemsPerPage={activePagination.itemsPerPage}
-            onPageChange={activePagination.setPage}
-            onItemsPerPageChange={activePagination.setItemsPerPage}
-          />
-        )}
+        <PaginationControls
+          currentPage={activePagination.currentPage}
+          totalItems={sortedItems.length}
+          itemsPerPage={activePagination.itemsPerPage}
+          onPageChange={activePagination.setPage}
+          onItemsPerPageChange={activePagination.setItemsPerPage}
+        />
       </div>
 
-      {/* Restore Dialog */}
+      {/* Dialogs — use correct prop names from each component's interface */}
       <RestoreDialog
         open={restoreDialogOpen}
         onOpenChange={setRestoreDialogOpen}
@@ -634,23 +629,23 @@ export default function Trash() {
         onRestore={handleRestoreConfirm}
       />
 
-      {/* Delete File Dialog */}
       <DeleteConfirmationDialog
         open={deleteFileDialogOpen || emptyTrashDialogOpen}
         onOpenChange={(open) => {
-          setDeleteFileDialogOpen(open);
-          setEmptyTrashDialogOpen(open);
+          if (!open) {
+            setDeleteFileDialogOpen(false);
+            setEmptyTrashDialogOpen(false);
+          }
         }}
         selectedItems={trashItemsToDelete}
         onConfirm={handleDeleteFileConfirm}
         isEmptyTrash={emptyTrashDialogOpen}
       />
 
-      {/* Delete Folder Dialog */}
       <DeleteFolderConfirmationDialog
         open={deleteFolderDialogOpen}
         onOpenChange={setDeleteFolderDialogOpen}
-        selectedItems={trashFolderItemsToDelete}
+        selectedItems={folderItemsToDelete}
         onConfirm={handleDeleteFolderConfirm}
       />
     </div>

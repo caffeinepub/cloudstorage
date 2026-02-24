@@ -11,12 +11,12 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { AlertTriangle } from 'lucide-react';
-import type { TrashItem } from '../hooks/useQueries';
+import type { TrashMetadata } from '../backend';
 
 interface DeleteConfirmationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  selectedItems: TrashItem[];
+  selectedItems: TrashMetadata[];
   onConfirm: (secureWipe: boolean) => void;
   isEmptyTrash?: boolean;
 }

@@ -2,28 +2,8 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-create-a-reusable-pagination-component-that-renders-a-user-selectable-items-per-page-dropdown-options-10-25-50-100-defaulting-to-10-page-number-buttons-previous-and-next-buttons-first-and-last-page-shortcut-buttons-a-total-items-and-total-pages-display-and-a-current-range-indicator-e-g-showing-21-40-of-356-items-the-selected-items-per-page-value-must-not-be-persisted-and-resets-to-10-each-time-the-page-or-section-is-loaded",
-      "featureTitle": "Create a reusable Pagination component that renders: a user-selectable items-per-page dropdown (options: 10, 25, 50, 100) defaulting to 10; page number buttons; Previous and Next buttons; First and Last page shortcut buttons; a total items and total pages display; and a current range indicator (e.g., 'Showing 21-40 of 356 items'). The selected items-per-page value must NOT be persisted and resets to 10 each time the page or section is loaded.",
-      "files": [
-        "frontend/src/hooks/usePagination.ts"
-      ],
-      "components": [
-        "authorization@4.0.0",
-        "blob-storage@4.0.0",
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-1"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-apply-the-reusable-pagination-component-to-the-my-files-section-dashboard-page-and-filelist-component-all-file-and-folder-entries-in-the-current-view-must-be-paginated-using-the-shared-component",
-      "featureTitle": "Apply the reusable Pagination component to the My Files section (Dashboard page and FileList component). All file and folder entries in the current view must be paginated using the shared component.",
+      "featureId": "feature-fix-the-grid-list-view-toggle-in-the-my-files-dashboard-filelist-section-so-that-clicking-the-grid-or-list-view-icon-in-the-filetoolbar-actually-switches-the-file-display-area-between-grid-layout-and-list-layout-the-viewmode-state-must-be-correctly-initialized-passed-down-from-the-parent-dashboard-or-filelist-and-consumed-by-the-file-rendering-logic-to-apply-the-correct-layout",
+      "featureTitle": "Fix the Grid & List view toggle in the 'My Files' (Dashboard/FileList) section so that clicking the grid or list view icon in the FileToolbar actually switches the file display area between grid layout and list layout. The viewMode state must be correctly initialized, passed down from the parent (Dashboard or FileList), and consumed by the file rendering logic to apply the correct layout.",
       "files": [
         "frontend/src/components/FileList.tsx"
       ],
@@ -37,69 +17,7 @@
         "github-export-icp-cli@1.0.0"
       ],
       "testIds": [
-        "REQ-2"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-apply-the-reusable-pagination-component-to-the-shared-section-covering-both-the-shared-with-me-and-shared-by-me-sub-sections-independently-each-sub-section-maintains-its-own-pagination-state",
-      "featureTitle": "Apply the reusable Pagination component to the Shared section, covering both the Shared With Me and Shared By Me sub-sections independently. Each sub-section maintains its own pagination state.",
-      "files": [
-        "frontend/src/components/SharedByMe.tsx",
-        "frontend/src/components/SharedWithMe.tsx",
-        "frontend/src/pages/Shared.tsx"
-      ],
-      "components": [
-        "authorization@4.0.0",
-        "blob-storage@4.0.0",
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-3"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-apply-the-reusable-pagination-component-to-the-trash-section-covering-both-the-files-and-folders-tabs-independently-each-tab-maintains-its-own-pagination-state",
-      "featureTitle": "Apply the reusable Pagination component to the Trash section, covering both the Files and Folders tabs independently. Each tab maintains its own pagination state.",
-      "files": [
-        "frontend/src/pages/Trash.tsx"
-      ],
-      "components": [
-        "authorization@4.0.0",
-        "blob-storage@4.0.0",
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-4"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-apply-the-reusable-pagination-component-to-the-recent-section-recent-page-all-recently-uploaded-file-entries-must-be-paginated-using-the-shared-component",
-      "featureTitle": "Apply the reusable Pagination component to the Recent section (Recent page). All recently uploaded file entries must be paginated using the shared component.",
-      "files": [
-        "frontend/src/pages/Recent.tsx"
-      ],
-      "components": [
-        "authorization@4.0.0",
-        "blob-storage@4.0.0",
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-5"
+        "REQ-1"
       ],
       "confidence": "high"
     }

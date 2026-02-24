@@ -1,11 +1,11 @@
-import { useGetCallerUserRole } from '../hooks/useQueries';
+import { useIsCallerAdmin } from '../hooks/useQueries';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, HardDrive, Activity, Shield } from 'lucide-react';
 import UserStorageManager from '../components/UserStorageManager';
 import ActivityFeed from '../components/ActivityFeed';
 
 export default function AdminDashboard() {
-  const { data: userRole, isLoading } = useGetCallerUserRole();
+  const { data: isAdmin, isLoading } = useIsCallerAdmin();
 
   if (isLoading) {
     return (
@@ -18,7 +18,7 @@ export default function AdminDashboard() {
     );
   }
 
-  if (userRole !== 'admin') {
+  if (!isAdmin) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
         <Card className="max-w-md">

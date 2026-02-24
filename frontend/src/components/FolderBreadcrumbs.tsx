@@ -1,6 +1,6 @@
 import { useGetFolder } from '../hooks/useQueries';
-import { Button } from '@/components/ui/button';
 import { ChevronRight, Home } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface FolderBreadcrumbsProps {
   currentFolderId: string | null;
@@ -8,47 +8,27 @@ interface FolderBreadcrumbsProps {
 }
 
 export default function FolderBreadcrumbs({ currentFolderId, onNavigate }: FolderBreadcrumbsProps) {
-  const { data: currentFolder } = useGetFolder(currentFolderId || '');
+  const { data: currentFolder } = useGetFolder(currentFolderId);
 
-  if (!currentFolderId) {
-    return (
-      <div className="flex items-center gap-2 mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="flex items-center gap-2"
-          onClick={() => onNavigate(null)}
-        >
-          <Home className="h-4 w-4" />
-          <span>Home</span>
-        </Button>
-      </div>
-    );
-  }
+  if (!currentFolderId) return null;
 
   return (
-    <div className="flex items-center gap-2 mb-4 flex-wrap">
+    <nav className="flex items-center gap-1 text-sm text-muted-foreground mb-2">
       <Button
         variant="ghost"
         size="sm"
-        className="flex items-center gap-2"
+        className="h-7 px-2 text-muted-foreground hover:text-foreground"
         onClick={() => onNavigate(null)}
       >
-        <Home className="h-4 w-4" />
-        <span>Home</span>
+        <Home className="h-4 w-4 mr-1" />
+        Root
       </Button>
       {currentFolder && (
         <>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          <Button
-            variant="ghost"
-            size="sm"
-            className="flex items-center gap-2"
-          >
-            <span>{currentFolder.name}</span>
-          </Button>
+          <ChevronRight className="h-4 w-4" />
+          <span className="font-medium text-foreground px-2">{currentFolder.name}</span>
         </>
       )}
-    </div>
+    </nav>
   );
 }

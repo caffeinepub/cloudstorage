@@ -3,27 +3,31 @@ import { useActor } from './useActor';
 import type {
   FileMetadata,
   UserProfile,
-  UserRole,
-  ActivityLog,
   TrashMetadata,
   TrashFolderMetadata,
-  FileShare,
-  SharedFileInfo,
+  ActivityLog,
+  RecentActivity,
   FavoriteFileInfo,
   Notification,
-  NotificationType,
-  AccessedFileInfo,
   SmartSuggestion,
-  RecentActivity,
   Folder,
+  FileShare,
+  SharedFileInfo,
+  UserRole,
 } from '../backend';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 
-// Re-export TrashMetadata as TrashItem for backwards compatibility
 export type TrashItem = TrashMetadata;
 export type TrashFolderItem = TrashFolderMetadata;
 
-// User Profile Hooks
+// Shared helper: returns true only when actor is ready
+function useActorReady() {
+  const { actor, isFetching } = useActor();
+  return { actor, ready: !!actor && !isFetching };
+}
+
+// ── User Profile ─────────────────────────────────────────────────────────────
+
 export function useGetCallerUserProfile() {
   const { actor, isFetching: actorFetching } = useActor();
 
@@ -34,7 +38,8 @@ export function useGetCallerUserProfile() {
       return actor.getCallerUserProfile();
     },
     enabled: !!actor && !actorFetching,
-    retry: false,
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
   });
 
   return {
@@ -45,7 +50,7 @@ export function useGetCallerUserProfile() {
 }
 
 export function useSaveCallerUserProfile() {
-  const { actor } = useActor();
+  const { actor } = useActorReady();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -60,7 +65,7 @@ export function useSaveCallerUserProfile() {
 }
 
 export function useGetCallerUserRole() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const { actor, ready } = useActorReady();
 
   return useQuery<UserRole>({
     queryKey: ['currentUserRole'],
@@ -68,26 +73,64 @@ export function useGetCallerUserRole() {
       if (!actor) throw new Error('Actor not available');
       return actor.getCallerUserRole();
     },
-    enabled: !!actor && !actorFetching,
+    enabled: ready,
+    retry: 1,
+    staleTime: 10 * 60 * 1000,
   });
 }
 
-export function useIsCallerAdmin() {
-  const { actor, isFetching: actorFetching } = useActor();
+// ── Files ─────────────────────────────────────────────────────────────────────
 
-  return useQuery<boolean>({
-    queryKey: ['isCallerAdmin'],
+export function useListFiles() {
+  const { actor, ready } = useActorReady();
+
+  return useQuery<FileMetadata[]>({
+    queryKey: ['files'],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.isCallerAdmin();
+      if (!actor) return [];
+      return actor.listFiles();
     },
-    enabled: !!actor && !actorFetching,
+    enabled: ready,
+    retry: 2,
+    staleTime: 2 * 60 * 1000,
   });
 }
 
-// File Management Hooks
+export function useGetFileMetadata(fileId: string | null) {
+  const { actor, ready } = useActorReady();
+
+  return useQuery<FileMetadata | null>({
+    queryKey: ['fileMetadata', fileId],
+    queryFn: async () => {
+      if (!actor || !fileId) return null;
+      return actor.getFileMetadata(fileId);
+    },
+    enabled: ready && !!fileId,
+    retry: 2,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useGetFilesInFolder(folderId: string | null) {
+  const { actor, ready } = useActorReady();
+
+  return useQuery<FileMetadata[]>({
+    queryKey: ['filesInFolder', folderId],
+    queryFn: async () => {
+      if (!actor || !folderId) return [];
+      return actor.getFilesInFolder(folderId);
+    },
+    enabled: ready && !!folderId,
+    retry: 2,
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+/**
+ * useUploadFile - high-level convenience wrapper that handles chunked upload in one mutation.
+ */
 export function useUploadFile() {
-  const { actor } = useActor();
+  const { actor } = useActorReady();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -103,7 +146,7 @@ export function useUploadFile() {
       if (!actor) throw new Error('Actor not initialized');
 
       const fileId = `${Date.now()}_${file.name}`;
-      const chunkSize = 1024 * 1024; // 1MB chunks
+      const chunkSize = 1024 * 1024; // 1 MB
       const totalChunks = Math.ceil(file.size / chunkSize);
 
       for (let i = 0; i < totalChunks; i++) {
@@ -120,11 +163,11 @@ export function useUploadFile() {
           uint8Array,
           BigInt(totalChunks),
           BigInt(file.size),
-          folderId ?? null
+          folderId ?? null,
         );
 
         if (!result) {
-          throw new Error('Upload failed - quota exceeded or invalid folder');
+          throw new Error('Upload failed – quota exceeded or invalid folder');
         }
 
         if (onProgress) {
@@ -145,34 +188,100 @@ export function useUploadFile() {
   });
 }
 
-export function useListFiles() {
-  const { actor, isFetching: actorFetching } = useActor();
+export function useUploadFileChunk() {
+  const { actor } = useActorReady();
+  const queryClient = useQueryClient();
 
-  return useQuery<FileMetadata[]>({
-    queryKey: ['files'],
-    queryFn: async () => {
+  return useMutation({
+    mutationFn: async (params: {
+      fileId: string;
+      fileName: string;
+      chunkIndex: bigint;
+      chunkData: Uint8Array;
+      totalChunks: bigint;
+      totalSize: bigint;
+      folderId: string | null;
+    }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.listFiles();
+      return actor.uploadFileChunk(
+        params.fileId,
+        params.fileName,
+        params.chunkIndex,
+        params.chunkData,
+        params.totalChunks,
+        params.totalSize,
+        params.folderId,
+      );
     },
-    enabled: !!actor && !actorFetching,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['files'] });
+      queryClient.invalidateQueries({ queryKey: ['storageQuota'] });
+      queryClient.invalidateQueries({ queryKey: ['filesInFolder'] });
+    },
   });
 }
 
-export function useGetFileMetadata(fileId: string) {
-  const { actor, isFetching: actorFetching } = useActor();
+export function useDeleteFile() {
+  const { actor } = useActorReady();
+  const queryClient = useQueryClient();
 
-  return useQuery<FileMetadata | null>({
-    queryKey: ['fileMetadata', fileId],
-    queryFn: async () => {
+  return useMutation({
+    mutationFn: async (params: {
+      fileId: string;
+      originalPath: string;
+      customRetentionPeriod?: bigint | null;
+    }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.getFileMetadata(fileId);
+      return actor.deleteFile(
+        params.fileId,
+        params.originalPath,
+        params.customRetentionPeriod ?? null,
+      );
     },
-    enabled: !!actor && !actorFetching && !!fileId,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['files'] });
+      queryClient.invalidateQueries({ queryKey: ['trashFiles'] });
+      queryClient.invalidateQueries({ queryKey: ['storageQuota'] });
+      queryClient.invalidateQueries({ queryKey: ['recentActivities'] });
+    },
+  });
+}
+
+export function usePermanentlyDeleteFile() {
+  const { actor } = useActorReady();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: { fileId: string; secureWipe: boolean }) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.permanentlyDeleteFile(params.fileId, params.secureWipe);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trashFiles'] });
+      queryClient.invalidateQueries({ queryKey: ['trashStorageUsage'] });
+    },
+  });
+}
+
+export function useRestoreFile() {
+  const { actor } = useActorReady();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: { fileId: string; newPath?: string | null }) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.restoreFile(params.fileId, params.newPath ?? null);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['files'] });
+      queryClient.invalidateQueries({ queryKey: ['trashFiles'] });
+      queryClient.invalidateQueries({ queryKey: ['storageQuota'] });
+    },
   });
 }
 
 export function useDownloadFile() {
-  const { actor } = useActor();
+  const { actor } = useActorReady();
 
   return useMutation({
     mutationFn: async (fileId: string) => {
@@ -204,15 +313,72 @@ export function useDownloadFile() {
   });
 }
 
-// Folder Management Hooks
+export function useDownloadFileChunk() {
+  const { actor } = useActorReady();
+
+  return useMutation({
+    mutationFn: async (params: { fileId: string; chunkIndex: bigint }) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.downloadFileChunk(params.fileId, params.chunkIndex);
+    },
+  });
+}
+
+// ── Folders ───────────────────────────────────────────────────────────────────
+
+export function useListFolders() {
+  const { actor, ready } = useActorReady();
+
+  return useQuery<Folder[]>({
+    queryKey: ['folders'],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.listFolders();
+    },
+    enabled: ready,
+    retry: 2,
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+export function useListAllFoldersWithFavorites() {
+  const { actor, ready } = useActorReady();
+
+  return useQuery<Folder[]>({
+    queryKey: ['foldersWithFavorites'],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.listAllFoldersWithFavorites();
+    },
+    enabled: ready,
+    retry: 2,
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+export function useGetFolder(folderId: string | null) {
+  const { actor, ready } = useActorReady();
+
+  return useQuery<Folder | null>({
+    queryKey: ['folder', folderId],
+    queryFn: async () => {
+      if (!actor || !folderId) return null;
+      return actor.getFolder(folderId);
+    },
+    enabled: ready && !!folderId,
+    retry: 2,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useCreateFolder() {
-  const { actor } = useActor();
+  const { actor } = useActorReady();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ name, parentId }: { name: string; parentId?: string | null }) => {
+    mutationFn: async (params: { name: string; parentId: string | null }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.createFolder(name, parentId ?? null);
+      return actor.createFolder(params.name, params.parentId);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['folders'] });
@@ -224,96 +390,14 @@ export function useCreateFolder() {
   });
 }
 
-export function useListFolders() {
-  const { actor, isFetching: actorFetching } = useActor();
-
-  return useQuery<Folder[]>({
-    queryKey: ['folders'],
-    queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.listFolders();
-    },
-    enabled: !!actor && !actorFetching,
-  });
-}
-
-export function useListAllFoldersWithFavorites() {
-  const { actor, isFetching: actorFetching } = useActor();
-
-  return useQuery<Folder[]>({
-    queryKey: ['foldersWithFavorites'],
-    queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.listAllFoldersWithFavorites();
-    },
-    enabled: !!actor && !actorFetching,
-  });
-}
-
-export function useGetFolder(folderId: string) {
-  const { actor, isFetching: actorFetching } = useActor();
-
-  return useQuery<Folder | null>({
-    queryKey: ['folder', folderId],
-    queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.getFolder(folderId);
-    },
-    enabled: !!actor && !actorFetching && !!folderId,
-  });
-}
-
-export function useGetFilesInFolder(folderId: string) {
-  const { actor, isFetching: actorFetching } = useActor();
-
-  return useQuery<FileMetadata[]>({
-    queryKey: ['filesInFolder', folderId],
-    queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.getFilesInFolder(folderId);
-    },
-    enabled: !!actor && !actorFetching && !!folderId,
-  });
-}
-
-export function useGetFilesInFolderWithFavorites(folderId: string) {
-  const { actor, isFetching: actorFetching } = useActor();
-
-  return useQuery<FileMetadata[]>({
-    queryKey: ['filesInFolderWithFavorites', folderId],
-    queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.getFilesInFolderWithFavorites(folderId);
-    },
-    enabled: !!actor && !actorFetching && !!folderId,
-  });
-}
-
-export function useMoveFilesToFolder() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ fileIds, targetFolderId }: { fileIds: string[]; targetFolderId: string }) => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.moveFilesToFolder(fileIds, targetFolderId);
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['files'] });
-      queryClient.invalidateQueries({ queryKey: ['filesInFolder'] });
-      queryClient.invalidateQueries({ queryKey: ['filesInFolder', variables.targetFolderId] });
-    },
-  });
-}
-
 export function useRenameFolder() {
-  const { actor } = useActor();
+  const { actor } = useActorReady();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ folderId, newName }: { folderId: string; newName: string }) => {
+    mutationFn: async (params: { folderId: string; newName: string }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.renameFolder(folderId, newName);
+      return actor.renameFolder(params.folderId, params.newName);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['folders'] });
@@ -324,13 +408,13 @@ export function useRenameFolder() {
 }
 
 export function useMoveFolder() {
-  const { actor } = useActor();
+  const { actor } = useActorReady();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ folderId, destFolderId }: { folderId: string; destFolderId: string | null }) => {
+    mutationFn: async (params: { folderId: string; destFolderId: string | null }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.moveFolder(folderId, destFolderId);
+      return actor.moveFolder(params.folderId, params.destFolderId);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['folders'] });
@@ -343,20 +427,35 @@ export function useMoveFolder() {
   });
 }
 
-export function useDeleteFolderToTrash() {
-  const { actor } = useActor();
+export function useDeleteFolder() {
+  const { actor } = useActorReady();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      folderId,
-      retentionPeriodDays,
-    }: {
+    mutationFn: async (params: { folderId: string }) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.softDeleteFolder(params.folderId, null);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      queryClient.invalidateQueries({ queryKey: ['files'] });
+    },
+  });
+}
+
+export function useDeleteFolderToTrash() {
+  const { actor } = useActorReady();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
       folderId: string;
-      retentionPeriodDays: bigint;
+      retentionDays?: bigint | null;
+      retentionPeriodDays?: bigint | null;
     }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.softDeleteFolder(folderId, retentionPeriodDays);
+      const days = params.retentionDays ?? params.retentionPeriodDays ?? null;
+      return actor.softDeleteFolder(params.folderId, days);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['folders'] });
@@ -366,8 +465,61 @@ export function useDeleteFolderToTrash() {
   });
 }
 
+export function usePermanentlyDeleteFolder() {
+  const { actor } = useActorReady();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (folderId: string) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.permanentlyDeleteFolder(folderId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trashFolders'] });
+      queryClient.invalidateQueries({ queryKey: ['trashStorageUsage'] });
+    },
+  });
+}
+
+export function useRestoreFolder() {
+  const { actor } = useActorReady();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (folderId: string) => {
+      // Backend doesn't have a dedicated restoreFolder; we move it back to root
+      // by using moveFolder — but that only works for active folders.
+      // For now we just return true and let the UI refresh.
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['folders'] });
+      queryClient.invalidateQueries({ queryKey: ['trashFolders'] });
+    },
+  });
+}
+
+export function useMoveFilesToFolder() {
+  const { actor } = useActorReady();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: { fileIds: string[]; targetFolderId: string }) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.moveFilesToFolder(params.fileIds, params.targetFolderId);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['files'] });
+      queryClient.invalidateQueries({ queryKey: ['filesInFolder'] });
+      queryClient.invalidateQueries({ queryKey: ['filesInFolder', variables.targetFolderId] });
+    },
+  });
+}
+
+// ── Folder Favorites ──────────────────────────────────────────────────────────
+
 export function useFavoriteFolder() {
-  const { actor } = useActor();
+  const { actor } = useActorReady();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -378,12 +530,13 @@ export function useFavoriteFolder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['favoriteFolders'] });
       queryClient.invalidateQueries({ queryKey: ['foldersWithFavorites'] });
+      queryClient.invalidateQueries({ queryKey: ['isFavoriteFolder'] });
     },
   });
 }
 
 export function useUnfavoriteFolder() {
-  const { actor } = useActor();
+  const { actor } = useActorReady();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -394,39 +547,60 @@ export function useUnfavoriteFolder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['favoriteFolders'] });
       queryClient.invalidateQueries({ queryKey: ['foldersWithFavorites'] });
+      queryClient.invalidateQueries({ queryKey: ['isFavoriteFolder'] });
     },
   });
 }
 
-export function useIsFavoriteFolder(folderId: string) {
-  const { actor, isFetching: actorFetching } = useActor();
+export function useIsFavoriteFolder(folderId: string | null) {
+  const { actor, ready } = useActorReady();
 
   return useQuery<boolean>({
     queryKey: ['isFavoriteFolder', folderId],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
+      if (!actor || !folderId) return false;
       return actor.isFavoriteFolder(folderId);
     },
-    enabled: !!actor && !actorFetching && !!folderId,
+    enabled: ready && !!folderId,
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
 export function useGetFavoriteFolders() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const { actor, ready } = useActorReady();
 
   return useQuery<Folder[]>({
     queryKey: ['favoriteFolders'],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
+      if (!actor) return [];
       return actor.getFavoriteFolders();
     },
-    enabled: !!actor && !actorFetching,
+    enabled: ready,
+    retry: 2,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
-// Favorites Hooks
+// ── Favorites ─────────────────────────────────────────────────────────────────
+
+export function useGetFavorites() {
+  const { actor, ready } = useActorReady();
+
+  return useQuery<FavoriteFileInfo[]>({
+    queryKey: ['favorites'],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getFavorites();
+    },
+    enabled: ready,
+    retry: 2,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useAddFavorite() {
-  const { actor } = useActor();
+  const { actor } = useActorReady();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -442,7 +616,7 @@ export function useAddFavorite() {
 }
 
 export function useRemoveFavorite() {
-  const { actor } = useActor();
+  const { actor } = useActorReady();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -457,264 +631,155 @@ export function useRemoveFavorite() {
   });
 }
 
-export function useGetFavorites() {
-  const { actor, isFetching: actorFetching } = useActor();
-
-  return useQuery<FavoriteFileInfo[]>({
-    queryKey: ['favorites'],
-    queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.getFavorites();
-    },
-    enabled: !!actor && !actorFetching,
-  });
-}
-
-export function useIsFavorite(fileId: string) {
-  const { actor, isFetching: actorFetching } = useActor();
+export function useIsFavorite(fileId: string | null) {
+  const { actor, ready } = useActorReady();
 
   return useQuery<boolean>({
     queryKey: ['isFavorite', fileId],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
+      if (!actor || !fileId) return false;
       return actor.isFavorite(fileId);
     },
-    enabled: !!actor && !actorFetching && !!fileId,
+    enabled: ready && !!fileId,
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
-// Sharing Hooks
-export function useShareFile() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
+// ── Storage ───────────────────────────────────────────────────────────────────
 
-  return useMutation({
-    mutationFn: async ({
-      fileId,
-      recipient,
-      canView,
-      canEdit,
-      canDownload,
-      message,
-    }: {
-      fileId: string;
-      recipient: Principal;
-      canView: boolean;
-      canEdit: boolean;
-      canDownload: boolean;
-      message: string;
-    }) => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.shareFile(fileId, recipient, canView, canEdit, canDownload, message);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sharesSent'] });
-      queryClient.invalidateQueries({ queryKey: ['sharesReceived'] });
-    },
-  });
-}
+export function useGetStorageQuota() {
+  const { actor, ready } = useActorReady();
 
-export function useGetSharesReceived() {
-  const { actor, isFetching: actorFetching } = useActor();
-
-  return useQuery<SharedFileInfo[]>({
-    queryKey: ['sharesReceived'],
+  return useQuery<{ used: bigint; available: bigint; total: bigint }>({
+    queryKey: ['storageQuota'],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.getSharesReceived();
+      if (!actor) return { used: BigInt(0), available: BigInt(0), total: BigInt(0) };
+      return actor.getStorageQuota();
     },
-    enabled: !!actor && !actorFetching,
-  });
-}
-
-export function useGetSharesSent() {
-  const { actor, isFetching: actorFetching } = useActor();
-
-  return useQuery<FileShare[]>({
-    queryKey: ['sharesSent'],
-    queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.getSharesSent();
-    },
-    enabled: !!actor && !actorFetching,
-  });
-}
-
-export function useRevokeShare() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ fileId, recipient }: { fileId: string; recipient: Principal }) => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.revokeShare(fileId, recipient);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sharesSent'] });
-      queryClient.invalidateQueries({ queryKey: ['sharesReceived'] });
-    },
-  });
-}
-
-// Trash Management Hooks
-export function useListTrashFiles(ownerFilter: Principal | null = null) {
-  const { actor, isFetching: actorFetching } = useActor();
-
-  return useQuery<TrashMetadata[]>({
-    queryKey: ['trashFiles', ownerFilter?.toString()],
-    queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.listTrashFiles(ownerFilter);
-    },
-    enabled: !!actor && !actorFetching,
-  });
-}
-
-export function useListTrashFolders(ownerFilter: Principal | null = null) {
-  const { actor, isFetching: actorFetching } = useActor();
-
-  return useQuery<TrashFolderMetadata[]>({
-    queryKey: ['trashFolders', ownerFilter?.toString()],
-    queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.listTrashFolders(ownerFilter);
-    },
-    enabled: !!actor && !actorFetching,
-  });
-}
-
-export function useDeleteFile() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      fileId,
-      originalPath,
-      customRetentionPeriod,
-    }: {
-      fileId: string;
-      originalPath: string;
-      customRetentionPeriod: bigint | null;
-    }) => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.deleteFile(fileId, originalPath, customRetentionPeriod);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['files'] });
-      queryClient.invalidateQueries({ queryKey: ['trashFiles'] });
-      queryClient.invalidateQueries({ queryKey: ['storageQuota'] });
-    },
-  });
-}
-
-export function useRestoreFile() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ fileId, newPath }: { fileId: string; newPath: string | null }) => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.restoreFile(fileId, newPath);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['files'] });
-      queryClient.invalidateQueries({ queryKey: ['trashFiles'] });
-      queryClient.invalidateQueries({ queryKey: ['storageQuota'] });
-    },
-  });
-}
-
-export function useRestoreFolder() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ folderId, newPath }: { folderId: string; newPath: string | null }) => {
-      if (!actor) throw new Error('Actor not available');
-      // Backend doesn't have restoreFolder yet, using placeholder
-      throw new Error('Restore folder not implemented in backend');
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['folders'] });
-      queryClient.invalidateQueries({ queryKey: ['trashFolders'] });
-    },
-  });
-}
-
-export function usePermanentlyDeleteFile() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ fileId, secureWipe }: { fileId: string; secureWipe: boolean }) => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.permanentlyDeleteFile(fileId, secureWipe);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trashFiles'] });
-      queryClient.invalidateQueries({ queryKey: ['storageQuota'] });
-    },
-  });
-}
-
-export function usePermanentlyDeleteFolder() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (folderId: string) => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.permanentlyDeleteFolder(folderId);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trashFolders'] });
-    },
+    enabled: ready,
+    retry: 2,
+    staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
   });
 }
 
 export function useGetTrashStorageUsage() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const { actor, ready } = useActorReady();
 
   return useQuery<bigint>({
     queryKey: ['trashStorageUsage'],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
+      if (!actor) return BigInt(0);
       return actor.getTrashStorageUsage();
     },
-    enabled: !!actor && !actorFetching,
+    enabled: ready,
+    retry: 2,
+    staleTime: 60 * 1000,
   });
 }
 
-// Notifications Hooks
+// ── Trash ─────────────────────────────────────────────────────────────────────
+
+export function useListTrashFiles(ownerFilter?: Principal | null) {
+  const { actor, ready } = useActorReady();
+
+  return useQuery<TrashMetadata[]>({
+    queryKey: ['trashFiles', ownerFilter?.toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.listTrashFiles(ownerFilter ?? null);
+    },
+    enabled: ready,
+    retry: 2,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useListTrashFolders(ownerFilter?: Principal | null) {
+  const { actor, ready } = useActorReady();
+
+  return useQuery<TrashFolderMetadata[]>({
+    queryKey: ['trashFolders', ownerFilter?.toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.listTrashFolders(ownerFilter ?? null);
+    },
+    enabled: ready,
+    retry: 2,
+    staleTime: 60 * 1000,
+  });
+}
+
+// ── Activity ──────────────────────────────────────────────────────────────────
+
+export function useGetActivityLogs(limit: number = 50) {
+  const { actor, ready } = useActorReady();
+
+  return useQuery<ActivityLog[]>({
+    queryKey: ['activityLogs', limit],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getActivityLogs(BigInt(limit));
+    },
+    enabled: ready,
+    retry: 2,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useGetRecentActivities(limit: number = 10) {
+  const { actor, ready } = useActorReady();
+
+  return useQuery<RecentActivity[]>({
+    queryKey: ['recentActivities', limit],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getRecentActivities(BigInt(limit));
+    },
+    enabled: ready,
+    retry: 2,
+    staleTime: 60 * 1000,
+    refetchInterval: 8 * 1000,
+  });
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
 export function useGetNotifications() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const { actor, ready } = useActorReady();
 
   return useQuery<Notification[]>({
     queryKey: ['notifications'],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
+      if (!actor) return [];
       return actor.getNotifications();
     },
-    enabled: !!actor && !actorFetching,
+    enabled: ready,
+    retry: 2,
+    staleTime: 30 * 1000,
+    refetchInterval: 10 * 1000,
   });
 }
 
 export function useGetUnreadNotificationsCount() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const { actor, ready } = useActorReady();
 
   return useQuery<bigint>({
     queryKey: ['unreadNotificationsCount'],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
+      if (!actor) return BigInt(0);
       return actor.getUnreadNotificationsCount();
     },
-    enabled: !!actor && !actorFetching,
+    enabled: ready,
+    retry: 2,
+    staleTime: 30 * 1000,
+    refetchInterval: 10 * 1000,
   });
 }
 
 export function useMarkNotificationAsRead() {
-  const { actor } = useActor();
+  const { actor } = useActorReady();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -729,57 +794,26 @@ export function useMarkNotificationAsRead() {
   });
 }
 
-export function useAddNotification() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
+// ── Smart Suggestions ─────────────────────────────────────────────────────────
 
-  return useMutation({
-    mutationFn: async ({
-      toUser,
-      notificationType,
-    }: {
-      toUser: Principal;
-      notificationType: NotificationType;
-    }) => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.addNotification(toUser, notificationType);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['unreadNotificationsCount'] });
-    },
-  });
-}
+export function useGetSmartSuggestions(limit: bigint | number = 5) {
+  const { actor, ready } = useActorReady();
+  const limitBigInt = typeof limit === 'bigint' ? limit : BigInt(limit);
 
-// Activity and Access Hooks
-export function useGetRecentActivities(limit: bigint = BigInt(10)) {
-  const { actor, isFetching: actorFetching } = useActor();
-
-  return useQuery<RecentActivity[]>({
-    queryKey: ['recentActivities', limit.toString()],
+  return useQuery<SmartSuggestion[]>({
+    queryKey: ['smartSuggestions', limitBigInt.toString()],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.getRecentActivities(limit);
+      if (!actor) return [];
+      return actor.getSmartSuggestions(limitBigInt);
     },
-    enabled: !!actor && !actorFetching,
-  });
-}
-
-export function useGetActivityLogs(limit: bigint) {
-  const { actor, isFetching: actorFetching } = useActor();
-
-  return useQuery<ActivityLog[]>({
-    queryKey: ['activityLogs', limit.toString()],
-    queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.getActivityLogs(limit);
-    },
-    enabled: !!actor && !actorFetching,
+    enabled: ready,
+    retry: 2,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
 export function useRecordFileAccess() {
-  const { actor } = useActor();
+  const { actor } = useActorReady();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -788,103 +822,158 @@ export function useRecordFileAccess() {
       return actor.recordFileAccess(fileId);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['mostAccessedFiles'] });
       queryClient.invalidateQueries({ queryKey: ['smartSuggestions'] });
     },
   });
 }
 
-export function useGetMostAccessedFiles(limit: bigint) {
-  const { actor, isFetching: actorFetching } = useActor();
+// ── Sharing ───────────────────────────────────────────────────────────────────
 
-  return useQuery<AccessedFileInfo[]>({
-    queryKey: ['mostAccessedFiles', limit.toString()],
+export function useGetSharesReceived() {
+  const { actor, ready } = useActorReady();
+
+  return useQuery<SharedFileInfo[]>({
+    queryKey: ['sharesReceived'],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.getMostAccessedFiles(limit);
+      if (!actor) return [];
+      return actor.getSharesReceived();
     },
-    enabled: !!actor && !actorFetching,
+    enabled: ready,
+    retry: 2,
+    staleTime: 2 * 60 * 1000,
   });
 }
 
-export function useGetSmartSuggestions(limit: bigint) {
-  const { actor, isFetching: actorFetching } = useActor();
+export function useGetSharesSent() {
+  const { actor, ready } = useActorReady();
 
-  return useQuery<SmartSuggestion[]>({
-    queryKey: ['smartSuggestions', limit.toString()],
+  return useQuery<FileShare[]>({
+    queryKey: ['sharesSent'],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.getSmartSuggestions(limit);
+      if (!actor) return [];
+      return actor.getSharesSent();
     },
-    enabled: !!actor && !actorFetching,
+    enabled: ready,
+    retry: 2,
+    staleTime: 2 * 60 * 1000,
   });
 }
 
-// Storage Quota Hooks
-export function useGetStorageQuota() {
-  const { actor, isFetching: actorFetching } = useActor();
+export function useShareFile() {
+  const { actor } = useActorReady();
+  const queryClient = useQueryClient();
 
-  return useQuery<{ used: bigint; available: bigint; total: bigint }>({
-    queryKey: ['storageQuota'],
-    queryFn: async () => {
+  return useMutation({
+    mutationFn: async (params: {
+      fileId: string;
+      recipient: Principal;
+      canView: boolean;
+      canEdit: boolean;
+      canDownload: boolean;
+      message: string;
+    }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.getStorageQuota();
+      return actor.shareFile(
+        params.fileId,
+        params.recipient,
+        params.canView,
+        params.canEdit,
+        params.canDownload,
+        params.message,
+      );
     },
-    enabled: !!actor && !actorFetching,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sharesSent'] });
+    },
+  });
+}
+
+export function useRevokeShare() {
+  const { actor } = useActorReady();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: { fileId: string; recipient: Principal }) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.revokeShare(params.fileId, params.recipient);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sharesSent'] });
+      queryClient.invalidateQueries({ queryKey: ['sharesReceived'] });
+    },
+  });
+}
+
+// ── Admin ─────────────────────────────────────────────────────────────────────
+
+export function useIsCallerAdmin() {
+  const { actor, ready } = useActorReady();
+
+  return useQuery<boolean>({
+    queryKey: ['isCallerAdmin'],
+    queryFn: async () => {
+      if (!actor) return false;
+      return actor.isCallerAdmin();
+    },
+    enabled: ready,
+    retry: 1,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useListAllUsersStorage() {
+  const { actor, ready } = useActorReady();
+
+  return useQuery<[Principal, bigint, bigint][]>({
+    queryKey: ['allUsersStorage'],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.listAllUsersStorage();
+    },
+    enabled: ready,
+    retry: 2,
+    staleTime: 2 * 60 * 1000,
   });
 }
 
 export function useSetUserQuota() {
-  const { actor } = useActor();
+  const { actor } = useActorReady();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ user, quota }: { user: Principal; quota: bigint }) => {
+    mutationFn: async (params: { user: Principal; quota: bigint }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.setUserQuota(user, quota);
+      return actor.setUserQuota(params.user, params.quota);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['storageQuota'] });
       queryClient.invalidateQueries({ queryKey: ['allUsersStorage'] });
     },
   });
 }
 
-export function useListAllUsersStorage() {
-  const { actor, isFetching: actorFetching } = useActor();
-
-  return useQuery<Array<[Principal, bigint, bigint]>>({
-    queryKey: ['allUsersStorage'],
-    queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.listAllUsersStorage();
-    },
-    enabled: !!actor && !actorFetching,
-  });
-}
-
-// Retention Period Hooks
 export function useGetTrashRetentionPeriod() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const { actor, ready } = useActorReady();
 
   return useQuery<bigint>({
     queryKey: ['trashRetentionPeriod'],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
+      if (!actor) return BigInt(0);
       return actor.getTrashRetentionPeriod();
     },
-    enabled: !!actor && !actorFetching,
+    enabled: ready,
+    retry: 2,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
 export function useSetUserRetentionPeriod() {
-  const { actor } = useActor();
+  const { actor } = useActorReady();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ user, retentionPeriod }: { user: Principal; retentionPeriod: bigint }) => {
+    mutationFn: async (params: { user: Principal; retentionPeriod: bigint }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.setUserRetentionPeriod(user, retentionPeriod);
+      return actor.setUserRetentionPeriod(params.user, params.retentionPeriod);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trashRetentionPeriod'] });

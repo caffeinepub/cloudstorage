@@ -1,92 +1,78 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { Upload, FolderPlus, ChevronRight, Home } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import FileList from '../components/FileList';
 import FileUpload from '../components/FileUpload';
 import CreateFolderDialog from '../components/CreateFolderDialog';
 import FolderBreadcrumbs from '../components/FolderBreadcrumbs';
-import { Upload, FolderOpen, FolderPlus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 
 export default function Dashboard() {
-  const [activeView, setActiveView] = useState<'files' | 'upload'>('files');
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-  const [createFolderOpen, setCreateFolderOpen] = useState(false);
-
-  const handleFolderClick = (folderId: string) => {
-    setCurrentFolderId(folderId);
-  };
-
-  const handleNavigate = (folderId: string | null) => {
-    setCurrentFolderId(folderId);
-  };
+  const [showUpload, setShowUpload] = useState(false);
+  const [showCreateFolder, setShowCreateFolder] = useState(false);
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">My Files</h1>
-          <p className="text-muted-foreground">
-            Manage your files and folders securely in the cloud
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <Button
-            onClick={() => setActiveView('files')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              activeView === 'files'
-                ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                : 'bg-blue-600/80 hover:bg-blue-600 text-white'
-            }`}
+    <div className="flex flex-col h-full p-6 gap-4">
+      {/* Header */}
+      <div className="flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <button
+            onClick={() => setCurrentFolderId(null)}
+            className="flex items-center gap-1 hover:text-foreground transition-colors"
           >
-            <FolderOpen className="h-4 w-4 mr-2" />
-            Files
-          </Button>
-          <Button
-            onClick={() => setActiveView('upload')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              activeView === 'upload'
-                ? 'bg-teal-600 hover:bg-teal-700 text-white'
-                : 'bg-teal-600/80 hover:bg-teal-600 text-white'
-            }`}
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Upload
-          </Button>
-          {activeView === 'files' && (
-            <Button
-              onClick={() => setCreateFolderOpen(true)}
-              className="px-4 py-2 rounded-lg font-medium bg-purple-600 hover:bg-purple-700 text-white transition-colors"
-            >
-              <FolderPlus className="h-4 w-4 mr-2" />
-              Create Folder
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        {activeView === 'files' && (
-          <>
-            {currentFolderId && (
+            <Home className="h-4 w-4" />
+            <span>My Files</span>
+          </button>
+          {currentFolderId && (
+            <>
+              <ChevronRight className="h-4 w-4" />
               <FolderBreadcrumbs
                 currentFolderId={currentFolderId}
-                onNavigate={handleNavigate}
+                onNavigate={setCurrentFolderId}
               />
-            )}
-            <FileList
-              currentFolderId={currentFolderId}
-              onFolderClick={handleFolderClick}
-            />
-          </>
-        )}
-        {activeView === 'upload' && (
-          <FileUpload currentFolderId={currentFolderId} />
-        )}
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowCreateFolder(true)}
+            className="gap-2"
+          >
+            <FolderPlus className="h-4 w-4" />
+            New Folder
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setShowUpload((v) => !v)}
+            className="gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            Upload
+          </Button>
+        </div>
       </div>
 
+      {/* Upload area (collapsible) */}
+      {showUpload && (
+        <div className="shrink-0">
+          <FileUpload currentFolderId={currentFolderId} />
+        </div>
+      )}
+
+      {/* File list — renders immediately with skeleton while loading */}
+      <div className="flex-1 min-h-0 rounded-xl border border-border bg-card p-4">
+        <FileList
+          currentFolderId={currentFolderId}
+          onFolderClick={setCurrentFolderId}
+        />
+      </div>
+
+      {/* Dialogs */}
       <CreateFolderDialog
-        open={createFolderOpen}
-        onOpenChange={setCreateFolderOpen}
+        open={showCreateFolder}
+        onOpenChange={setShowCreateFolder}
         parentFolderId={currentFolderId}
       />
     </div>

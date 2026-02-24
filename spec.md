@@ -1,14 +1,12 @@
 # Specification
 
 ## Summary
-**Goal:** Add client-side pagination to the My Files, Shared, Trash, and Recent sections of the CloudStorage app.
+**Goal:** Fix the Grid & List view toggle in the My Files (Dashboard/FileList) section so that clicking the view icons actually switches the file display layout.
 
 **Planned changes:**
-- Create a reusable Pagination component with an items-per-page dropdown (options: 10, 25, 50, 100; default: 10, never persisted), page number buttons, Previous/Next buttons, First/Last buttons, a total items/pages display, and a current range indicator (e.g., "Showing 21–40 of 356 items")
-- Apply the Pagination component to the My Files section (Dashboard/FileList), paginating all file and folder entries
-- Apply the Pagination component to the Shared section, with independent pagination state for the Shared With Me and Shared By Me sub-sections
-- Apply the Pagination component to the Trash section, with independent pagination state for the Files and Folders tabs
-- Apply the Pagination component to the Recent section, paginating all recent file entries
-- Changing items-per-page resets to page 1 in all sections; pagination state is never saved to localStorage or sessionStorage
+- Initialize and manage `viewMode` state correctly in the parent component (Dashboard or FileList)
+- Pass `viewMode` state and its setter down to the `FileToolbar` component
+- Update the file rendering logic to apply grid or list layout based on the current `viewMode`
+- Visually highlight the active view icon in `FileToolbar` to reflect the current mode
 
-**User-visible outcome:** Users see paginated lists in My Files, Shared, Trash, and Recent sections, with controls to navigate pages and select how many items to display per page, resetting to 10 items per page on every load.
+**User-visible outcome:** Users can click the grid or list view icon in the My Files section and the file display area will switch between a multi-column grid layout and a single-column list layout, with the active icon visually highlighted.

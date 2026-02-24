@@ -1,92 +1,36 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-24T18:39:22.845Z",
+  "generatedAt": "2026-02-24T19:48:35.500Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 5,
-    "implemented": 5,
+    "total": 1,
+    "implemented": 1,
     "items": [
       {
         "id": "REQ-1",
-        "summary": "Create a reusable Pagination component that renders: a user-selectable items-per-page dropdown (options: 10, 25, 50, 100) defaulting to 10; page number buttons; Previous and Next buttons; First and Last page shortcut buttons; a total items and total pages display; and a current range indicator (e.g., 'Showing 21-40 of 356 items'). The selected items-per-page value must NOT be persisted and resets to 10 each time the page or section is loaded.",
+        "summary": "Fix the Grid & List view toggle in the 'My Files' (Dashboard/FileList) section so that clicking the grid or list view icon in the FileToolbar actually switches the file display area between grid layout and list layout. The viewMode state must be correctly initialized, passed down from the parent (Dashboard or FileList), and consumed by the file rendering logic to apply the correct layout.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/components/Pagination.tsx",
-          "frontend/src/hooks/usePagination.ts"
-        ],
-        "matchedFiles": [
-          "frontend/src/hooks/usePagination.ts"
-        ]
-      },
-      {
-        "id": "REQ-2",
-        "summary": "Apply the reusable Pagination component to the My Files section (Dashboard page and FileList component). All file and folder entries in the current view must be paginated using the shared component.",
-        "status": "implemented",
-        "plannedFiles": [
+          "frontend/src/components/FileToolbar.tsx",
           "frontend/src/components/FileList.tsx",
           "frontend/src/pages/Dashboard.tsx"
         ],
         "matchedFiles": [
           "frontend/src/components/FileList.tsx"
         ]
-      },
-      {
-        "id": "REQ-3",
-        "summary": "Apply the reusable Pagination component to the Shared section, covering both the Shared With Me and Shared By Me sub-sections independently. Each sub-section maintains its own pagination state.",
-        "status": "implemented",
-        "plannedFiles": [
-          "frontend/src/components/SharedWithMe.tsx",
-          "frontend/src/components/SharedByMe.tsx",
-          "frontend/src/pages/Shared.tsx"
-        ],
-        "matchedFiles": [
-          "frontend/src/components/SharedWithMe.tsx",
-          "frontend/src/components/SharedByMe.tsx",
-          "frontend/src/pages/Shared.tsx"
-        ]
-      },
-      {
-        "id": "REQ-4",
-        "summary": "Apply the reusable Pagination component to the Trash section, covering both the Files and Folders tabs independently. Each tab maintains its own pagination state.",
-        "status": "implemented",
-        "plannedFiles": [
-          "frontend/src/pages/Trash.tsx"
-        ],
-        "matchedFiles": [
-          "frontend/src/pages/Trash.tsx"
-        ]
-      },
-      {
-        "id": "REQ-5",
-        "summary": "Apply the reusable Pagination component to the Recent section (Recent page). All recently uploaded file entries must be paginated using the shared component.",
-        "status": "implemented",
-        "plannedFiles": [
-          "frontend/src/pages/Recent.tsx"
-        ],
-        "matchedFiles": [
-          "frontend/src/pages/Recent.tsx"
-        ]
       }
     ]
   },
   "changedFiles": [
     "build-request.json",
-    "caffeine.lock.json",
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
     "frontend/src/components/FileList.tsx",
-    "frontend/src/components/PaginationControls.tsx",
-    "frontend/src/components/SharedByMe.tsx",
-    "frontend/src/components/SharedWithMe.tsx",
-    "frontend/src/hooks/usePagination.ts",
-    "frontend/src/pages/Recent.tsx",
-    "frontend/src/pages/Shared.tsx",
-    "frontend/src/pages/Trash.tsx",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

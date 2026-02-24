@@ -12,12 +12,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon, X } from 'lucide-react';
 import { format } from 'date-fns';
-import { Principal } from '@dfinity/principal';
-import type { TrashItem } from '../hooks/useQueries';
+import { Principal } from '@icp-sdk/core/principal';
+import type { TrashMetadata } from '../backend';
 
 interface TrashFiltersProps {
-  trashData: TrashItem[];
-  onFilteredDataChange: (data: TrashItem[]) => void;
+  trashData: TrashMetadata[];
+  onFilteredDataChange: (data: TrashMetadata[]) => void;
   isAdmin: boolean;
   onOwnerFilterChange?: (owner: Principal | null) => void;
 }
@@ -37,14 +37,12 @@ export default function TrashFilters({
   useEffect(() => {
     let filtered = trashData;
 
-    // Apply search filter
     if (searchTerm) {
       filtered = filtered.filter((item) =>
         item.metadata.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
-    // Apply file type filter
     if (fileType !== 'all') {
       filtered = filtered.filter((item) => {
         const extension = item.metadata.name.split('.').pop()?.toLowerCase() || '';
@@ -63,12 +61,10 @@ export default function TrashFilters({
       });
     }
 
-    // Apply owner filter (client-side for display filtering)
     if (ownerString !== 'all' && isAdmin) {
       filtered = filtered.filter((item) => item.metadata.owner.toString() === ownerString);
     }
 
-    // Apply original path filter
     if (originalPath) {
       filtered = filtered.filter((item) =>
         item.originalPath.toLowerCase().includes(originalPath.toLowerCase())
@@ -80,8 +76,6 @@ export default function TrashFilters({
 
   const handleOwnerChange = (value: string) => {
     setOwnerString(value);
-    
-    // Notify parent component for backend filtering
     if (onOwnerFilterChange) {
       if (value === 'all') {
         onOwnerFilterChange(null);
@@ -90,7 +84,6 @@ export default function TrashFilters({
           const principal = Principal.fromText(value);
           onOwnerFilterChange(principal);
         } catch (error) {
-          console.error('Invalid principal:', error);
           onOwnerFilterChange(null);
         }
       }

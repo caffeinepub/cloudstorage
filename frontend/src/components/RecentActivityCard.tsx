@@ -1,108 +1,92 @@
+import React from 'react';
+import { Clock, Upload, Trash2, RotateCcw, Share2, AlertTriangle } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useGetRecentActivities } from '../hooks/useQueries';
-import { Card } from '@/components/ui/card';
-import { Activity, Upload, Trash2, FileCheck, FileX } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
+function getActionIcon(action: string) {
+  switch (action.toUpperCase()) {
+    case 'UPLOAD':
+      return <Upload className="h-3.5 w-3.5 text-primary shrink-0" />;
+    case 'DELETE':
+    case 'SOFT_DELETE':
+    case 'PERMANENT_DELETE':
+    case 'AUTO_DELETE':
+      return <Trash2 className="h-3.5 w-3.5 text-destructive shrink-0" />;
+    case 'RESTORE':
+      return <RotateCcw className="h-3.5 w-3.5 text-accent shrink-0" />;
+    case 'SHARE':
+      return <Share2 className="h-3.5 w-3.5 text-secondary shrink-0" />;
+    default:
+      return <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />;
+  }
+}
+
+function getActionLabel(action: string): string {
+  switch (action.toUpperCase()) {
+    case 'UPLOAD': return 'Uploaded';
+    case 'DELETE': return 'Moved to trash';
+    case 'SOFT_DELETE': return 'Moved to trash';
+    case 'PERMANENT_DELETE': return 'Permanently deleted';
+    case 'AUTO_DELETE': return 'Auto-deleted';
+    case 'RESTORE': return 'Restored';
+    case 'SHARE': return 'Shared';
+    default: return action;
+  }
+}
 
 export default function RecentActivityCard() {
-  const { data: activities, isLoading, isRefetching } = useGetRecentActivities();
+  const { data: activities, isLoading, isError } = useGetRecentActivities(10);
 
-  const getActivityIcon = (action: string) => {
-    switch (action.toUpperCase()) {
-      case 'UPLOAD':
-        return Upload;
-      case 'DELETE':
-        return Trash2;
-      case 'RESTORE':
-        return FileCheck;
-      case 'PERMANENT_DELETE':
-        return FileX;
-      default:
-        return Activity;
-    }
-  };
-
-  const getActivityColor = (action: string) => {
-    switch (action.toUpperCase()) {
-      case 'UPLOAD':
-        return 'text-chart-2';
-      case 'DELETE':
-        return 'text-chart-1';
-      case 'RESTORE':
-        return 'text-chart-3';
-      case 'PERMANENT_DELETE':
-        return 'text-destructive';
-      default:
-        return 'text-muted-foreground';
-    }
-  };
-
-  if (isLoading && !activities) {
+  if (isLoading) {
     return (
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
-        <div className="space-y-3">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex items-start gap-3 animate-pulse">
-              <div className="w-8 h-8 bg-muted rounded-lg" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 bg-muted rounded w-3/4" />
-                <div className="h-3 bg-muted rounded w-1/2" />
-              </div>
+      <div className="space-y-3">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="flex items-start gap-3">
+            <Skeleton className="h-6 w-6 rounded-full shrink-0" />
+            <div className="flex-1 space-y-1.5">
+              <Skeleton className="h-3 w-40" />
+              <Skeleton className="h-3 w-24" />
             </div>
-          ))}
-        </div>
-      </Card>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex items-center gap-2 p-3 rounded-lg border border-border text-sm text-muted-foreground">
+        <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+        <span>Unable to load recent activity.</span>
+      </div>
     );
   }
 
   if (!activities || activities.length === 0) {
     return (
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <Activity className="h-12 w-12 text-muted-foreground mb-3" />
-          <p className="text-sm text-muted-foreground">No recent activity</p>
-        </div>
-      </Card>
+      <div className="flex flex-col items-center justify-center py-6 text-center">
+        <Clock className="h-7 w-7 text-muted-foreground mb-2" />
+        <p className="text-sm text-muted-foreground">No recent activity</p>
+      </div>
     );
   }
 
   return (
-    <Card className="p-6">
-      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-        <Activity className="h-5 w-5 text-primary" />
-        Recent Activity
-      </h3>
-      <ScrollArea className="h-[400px] pr-4">
-        <div className="space-y-3">
-          {activities.map((activity, index) => {
-            const Icon = getActivityIcon(activity.action);
-            const colorClass = getActivityColor(activity.action);
-            
-            return (
-              <div
-                key={`${activity.fileId}-${activity.timestamp}-${index}`}
-                className="flex items-start gap-3 p-3 rounded-lg hover:bg-accent/50 transition-colors"
-              >
-                <div className={`p-2 rounded-lg bg-accent`}>
-                  <Icon className={`h-4 w-4 ${colorClass}`} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">
-                    {activity.action.replace(/_/g, ' ')}
-                  </p>
-                  <p className="text-sm text-muted-foreground truncate" title={activity.fileName}>
-                    {activity.fileName}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {activity.relativeTime}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
+    <div className="space-y-3">
+      {activities.map((activity, idx) => (
+        <div key={`${activity.fileId}-${idx}`} className="flex items-start gap-3">
+          <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
+            {getActionIcon(activity.action)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-foreground">
+              <span className="font-medium">{getActionLabel(activity.action)}</span>{' '}
+              <span className="truncate">{activity.fileName}</span>
+            </p>
+            <p className="text-xs text-muted-foreground">{activity.relativeTime}</p>
+          </div>
         </div>
-      </ScrollArea>
-    </Card>
+      ))}
+    </div>
   );
 }

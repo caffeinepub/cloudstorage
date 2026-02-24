@@ -1,115 +1,33 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Add Pagination to My Files, Shared, Trash, and Recent Sections",
+  "title": "Fix Grid & List View Toggle in My Files Section",
   "requirements": [
     {
       "id": "REQ-1",
-      "summary": "Create a reusable Pagination component with items-per-page dropdown, page navigation buttons, and range indicator that defaults to 10 items per page without persisting the selection",
+      "summary": "Fix the Grid & List view toggle in the 'My Files' section so that clicking the grid or list view icon in the FileToolbar actually switches the file display area between grid layout and list layout",
       "acceptanceCriteria": [
-        "Pagination component renders items-per-page dropdown with options 10, 25, 50, 100",
-        "Default items-per-page is 10 on every fresh load",
-        "Items-per-page selection is not persisted to localStorage or sessionStorage",
-        "Page number buttons show the correct range of pages",
-        "Previous, Next, First, and Last buttons are present and functional",
-        "First and Last buttons are disabled when already on the first or last page respectively",
-        "Previous button is disabled on the first page; Next button is disabled on the last page",
-        "Range indicator displays correctly (e.g., 'Showing 1-10 of 45 items')",
-        "Total items count and total pages count are displayed"
+        "Clicking the grid view icon in the FileToolbar switches the file display area to a multi-column grid layout.",
+        "Clicking the list view icon in the FileToolbar switches the file display area to a single-column list layout.",
+        "The active/selected view icon is visually highlighted to indicate the current view mode.",
+        "The view mode state persists correctly within the session (does not reset unexpectedly on re-render).",
+        "The toggle works consistently in the My Files (Dashboard) section."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/components/Pagination.tsx",
-          "operation": "create",
-          "description": "Create a reusable Pagination component that accepts totalItems, currentPage, itemsPerPage, onPageChange, and onItemsPerPageChange props. Render a dropdown for selecting items-per-page (10, 25, 50, 100) defaulting to 10, page number buttons with ellipsis for large page counts, Previous/Next buttons, First/Last buttons, range indicator showing 'Showing X-Y of Z items', and total pages display. Use shadcn/ui Button and Select components for consistent styling. Disable First/Previous when on page 1 and Last/Next when on the last page. Do not use any localStorage or sessionStorage for persistence."
+          "path": "frontend/src/components/FileToolbar.tsx",
+          "operation": "modify",
+          "description": "Add viewMode and onViewModeChange props to the FileToolbar component. Wire the grid and list view toggle buttons to call onViewModeChange with the appropriate mode ('grid' or 'list'). Apply visual highlighting (e.g., different background color, border, or opacity) to the active view button based on the current viewMode prop to indicate which view is selected."
         },
-        {
-          "path": "frontend/src/hooks/usePagination.ts",
-          "operation": "create",
-          "description": "Create a custom React hook usePagination that manages pagination state including currentPage (default 1), itemsPerPage (default 10, not persisted), and provides functions to change page, change items per page (resetting to page 1), calculate total pages, and slice data arrays for the current page. Return an object with state values, handlers, and a paginatedData function that accepts an array and returns the current page slice."
-        }
-      ]
-    },
-    {
-      "id": "REQ-2",
-      "summary": "Apply the reusable Pagination component to the My Files section (Dashboard page and FileList component) to paginate file and folder entries",
-      "acceptanceCriteria": [
-        "My Files section shows at most the selected items-per-page count of entries at a time",
-        "Pagination controls appear below the file and folder list",
-        "Navigating pages correctly slices the displayed items",
-        "Changing items-per-page resets to page 1"
-      ],
-      "file_operations": [
         {
           "path": "frontend/src/components/FileList.tsx",
           "operation": "modify",
-          "description": "Import and integrate the usePagination hook to manage pagination state for the combined files and folders array. Apply the paginatedData function to slice the filtered and sorted items before rendering. Add the Pagination component below the file/folder grid or list view, passing totalItems (filtered item count), currentPage, itemsPerPage, and the change handlers. Ensure search, filter, and sort operations work correctly with pagination by resetting to page 1 when these change."
+          "description": "Add viewMode state using useState with a default value of 'grid'. Pass viewMode and a setViewMode callback to the FileToolbar component. Implement conditional rendering logic that displays files and folders in a multi-column grid layout when viewMode is 'grid' and in a single-column list layout when viewMode is 'list'. Ensure grid layout uses CSS grid or flexbox with multiple columns and list layout uses a single column with row-based items. Maintain all existing functionality (search, sort, filter, pagination, preview, favorite, move, delete, rename) in both view modes."
         },
         {
           "path": "frontend/src/pages/Dashboard.tsx",
           "operation": "modify",
-          "description": "Verify that the FileList component integration in Dashboard page correctly displays the pagination controls and that folder navigation resets pagination state. No additional changes needed if FileList handles pagination internally."
-        }
-      ]
-    },
-    {
-      "id": "REQ-3",
-      "summary": "Apply the reusable Pagination component to the Shared section, covering both Shared With Me and Shared By Me sub-sections independently with separate pagination states",
-      "acceptanceCriteria": [
-        "Shared With Me sub-section has its own independent pagination controls",
-        "Shared By Me sub-section has its own independent pagination controls",
-        "Each sub-section resets to page 1 when items-per-page is changed",
-        "Range indicator is accurate per sub-section"
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/components/SharedWithMe.tsx",
-          "operation": "modify",
-          "description": "Import and use the usePagination hook to manage pagination state for the shared files received list. Apply paginatedData to slice the filtered array before rendering. Add the Pagination component below the file list, passing the appropriate props (totalItems, currentPage, itemsPerPage, handlers). Ensure search and sort operations reset to page 1."
-        },
-        {
-          "path": "frontend/src/components/SharedByMe.tsx",
-          "operation": "create",
-          "description": "Create a SharedByMe component that fetches and displays files shared by the current user using useGetSharesSent query. Implement search, sort, and pagination using the usePagination hook independently from SharedWithMe. Display file information, recipient details, permissions, and action buttons. Add the Pagination component below the list. Follow the same patterns as SharedWithMe for consistency."
-        },
-        {
-          "path": "frontend/src/pages/Shared.tsx",
-          "operation": "modify",
-          "description": "Replace the simple wrapper with a tabbed interface using shadcn/ui Tabs component. Create two tabs: 'Shared With Me' rendering the SharedWithMe component and 'Shared By Me' rendering the new SharedByMe component. Each tab maintains its own independent pagination state through the component-level usePagination hook."
-        }
-      ]
-    },
-    {
-      "id": "REQ-4",
-      "summary": "Apply the reusable Pagination component to the Trash section, covering both Files and Folders tabs independently with separate pagination states",
-      "acceptanceCriteria": [
-        "Trash Files tab has its own independent pagination controls",
-        "Trash Folders tab has its own independent pagination controls",
-        "Switching tabs does not carry over the page number from the other tab",
-        "Bulk select operations work correctly with paginated views"
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/pages/Trash.tsx",
-          "operation": "modify",
-          "description": "Import and use two separate usePagination hook instances: one for the Files tab and one for the Folders tab. Apply paginatedData to slice the filtered and sorted trash items before rendering in each respective tab. Add the Pagination component below each tab's content, ensuring each tab uses its own pagination state and handlers. Verify that bulk selection works correctly by tracking selected items by ID and ensuring selection state persists within the current tab's paginated view. Reset to page 1 when filters or sort order change."
-        }
-      ]
-    },
-    {
-      "id": "REQ-5",
-      "summary": "Apply the reusable Pagination component to the Recent section (Recent page) to paginate recently uploaded file entries",
-      "acceptanceCriteria": [
-        "Recent section shows at most the selected items-per-page count of entries at a time",
-        "Pagination controls appear below the recent files list",
-        "Navigating pages correctly slices the displayed items",
-        "Changing items-per-page resets to page 1"
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/pages/Recent.tsx",
-          "operation": "modify",
-          "description": "Import and integrate the usePagination hook to manage pagination state for the recent uploads array. Apply paginatedData to slice the filtered and sorted recent files before rendering. Add the Pagination component below the file grid or list, passing totalItems (filtered count), currentPage, itemsPerPage, and change handlers. Ensure search, filter, and sort operations reset to page 1 when changed."
+          "description": "Verify that the FileList component is rendered without any props that would override its internal viewMode state. Ensure the Dashboard does not pass conflicting state or props that would interfere with the FileList's view toggle functionality. Test that the view mode toggle works correctly when navigating between folders and that the selected view mode persists within the session as long as the component remains mounted."
         }
       ]
     }
