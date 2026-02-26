@@ -1,24 +1,38 @@
 {
   "schemaVersion": "1.0.0",
   "projectStateVersion": 3,
-  "summary": "New project",
+  "summary": "File management app with a My Files section featuring a table layout, folder/file icons, sticky header, and action menus.",
   "architectural_notes": [],
-  "known_issues": [
-    "Grid & List view toggle in 'My Files' section does not switch the file display layout when clicked"
-  ],
-  "isFixRequest": true,
+  "known_issues": [],
+  "isFixRequest": false,
   "existing_features": [
     {
-      "id": "feature-fix-the-grid-list-view-toggle-in-the-my-files-dashboard-filelist-section-so-that-clicking-the-grid-or-list-view-icon-in-the-filetoolbar-actually-switches-the-file-display-area-between-grid-layout-and-list-layout-the-viewmode-state-must-be-correctly-initialized-passed-down-from-the-parent-dashboard-or-filelist-and-consumed-by-the-file-rendering-logic-to-apply-the-correct-layout",
-      "title": "Fix the Grid & List view toggle in the 'My Files' (Dashboard/FileList) section so that clicking the grid or list view icon in the FileToolbar actually switches the file display area between grid layout and list layout. The viewMode state must be correctly initialized, passed down from the parent (Dashboard or FileList), and consumed by the file rendering logic to apply the correct layout.",
+      "id": "feature-in-the-my-files-section-add-a-rename-action-button-to-the-bulk-selection-action-bar-positioned-immediately-before-the-existing-move-button-the-rename-action-in-bulk-mode-should-open-a-rename-dialog-or-trigger-rename-for-the-selected-item-if-only-one-is-selected-include-an-appropriate-rename-icon-on-the-button",
+      "title": "In the My Files section, add a 'Rename' action button to the bulk selection action bar, positioned immediately before the existing 'Move' button. The Rename action in bulk mode should open a rename dialog (or trigger rename for the selected item if only one is selected). Include an appropriate rename icon on the button.",
       "reqIds": [
         "REQ-1"
       ],
       "version": 1
+    },
+    {
+      "id": "feature-in-the-my-files-section-add-a-rename-menu-item-to-the-vertical-three-dot-ellipsis-context-menu-for-each-file-folder-row-positioned-immediately-before-the-existing-move-item-clicking-it-should-open-the-rename-dialog-for-that-file-or-folder-include-an-appropriate-rename-icon",
+      "title": "In the My Files section, add a 'Rename' menu item to the vertical three-dot (ellipsis) context menu for each file/folder row, positioned immediately before the existing 'Move' item. Clicking it should open the rename dialog for that file or folder. Include an appropriate rename icon.",
+      "reqIds": [
+        "REQ-2"
+      ],
+      "version": 1
     }
   ],
-  "new_feature_requests": [],
-  "projectName": "Fix Grid & List view toggle in My Files section",
+  "new_feature_requests": [
+    {
+      "id": "AR-1",
+      "summary": "Add 'Rename' option to bulk action bar (before 'Move') and vertical three-dot menu (before 'Move') in My Files section",
+      "reqIds": [],
+      "status": "pending"
+    }
+  ],
+  "gameProjectType": "none",
+  "projectName": "CloudVault",
   "clarification_mode": "instant",
   "clarification_rounds": 0
 }

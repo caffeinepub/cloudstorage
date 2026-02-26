@@ -1,26 +1,39 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-24T19:48:35.500Z",
+  "generatedAt": "2026-02-25T11:20:13.545Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 1,
-    "implemented": 1,
+    "total": 2,
+    "implemented": 2,
     "items": [
       {
         "id": "REQ-1",
-        "summary": "Fix the Grid & List view toggle in the 'My Files' (Dashboard/FileList) section so that clicking the grid or list view icon in the FileToolbar actually switches the file display area between grid layout and list layout. The viewMode state must be correctly initialized, passed down from the parent (Dashboard or FileList), and consumed by the file rendering logic to apply the correct layout.",
+        "summary": "In the My Files section, add a 'Rename' action button to the bulk selection action bar, positioned immediately before the existing 'Move' button. The Rename action in bulk mode should open a rename dialog (or trigger rename for the selected item if only one is selected). Include an appropriate rename icon on the button.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/components/FileToolbar.tsx",
-          "frontend/src/components/FileList.tsx",
-          "frontend/src/pages/Dashboard.tsx"
+          "frontend/src/components/FileList.tsx"
         ],
         "matchedFiles": [
           "frontend/src/components/FileList.tsx"
+        ]
+      },
+      {
+        "id": "REQ-2",
+        "summary": "In the My Files section, add a 'Rename' menu item to the vertical three-dot (ellipsis) context menu for each file/folder row, positioned immediately before the existing 'Move' item. Clicking it should open the rename dialog for that file or folder. Include an appropriate rename icon.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/components/FileList.tsx",
+          "frontend/src/components/RenameFileDialog.tsx",
+          "frontend/src/hooks/useQueries.ts"
+        ],
+        "matchedFiles": [
+          "frontend/src/components/FileList.tsx",
+          "frontend/src/components/RenameFileDialog.tsx",
+          "frontend/src/hooks/useQueries.ts"
         ]
       }
     ]
@@ -31,6 +44,8 @@
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
     "frontend/src/components/FileList.tsx",
+    "frontend/src/components/RenameFileDialog.tsx",
+    "frontend/src/hooks/useQueries.ts",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

@@ -1,33 +1,50 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Fix Grid & List View Toggle in My Files Section",
+  "title": "Add Rename option to bulk action bar and three-dot menu in My Files",
   "requirements": [
     {
       "id": "REQ-1",
-      "summary": "Fix the Grid & List view toggle in the 'My Files' section so that clicking the grid or list view icon in the FileToolbar actually switches the file display area between grid layout and list layout",
+      "summary": "Add 'Rename' button to the bulk selection action bar in My Files, positioned before the 'Move' button, with an appropriate icon. When one item is selected, clicking Rename opens the rename dialog.",
       "acceptanceCriteria": [
-        "Clicking the grid view icon in the FileToolbar switches the file display area to a multi-column grid layout.",
-        "Clicking the list view icon in the FileToolbar switches the file display area to a single-column list layout.",
-        "The active/selected view icon is visually highlighted to indicate the current view mode.",
-        "The view mode state persists correctly within the session (does not reset unexpectedly on re-render).",
-        "The toggle works consistently in the My Files (Dashboard) section."
+        "The bulk action bar displays buttons in the order: Download, Rename, Move, Delete.",
+        "The 'Rename' button has a rename/edit icon.",
+        "Clicking 'Rename' in the bulk action bar opens the rename dialog when one item is selected.",
+        "The Rename button is visible whenever items are selected and the bulk action bar is shown."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/components/FileToolbar.tsx",
+          "path": "frontend/src/components/FileList.tsx",
           "operation": "modify",
-          "description": "Add viewMode and onViewModeChange props to the FileToolbar component. Wire the grid and list view toggle buttons to call onViewModeChange with the appropriate mode ('grid' or 'list'). Apply visual highlighting (e.g., different background color, border, or opacity) to the active view button based on the current viewMode prop to indicate which view is selected."
-        },
+          "description": "Add a Rename button to the bulk action bar positioned immediately before the existing Move button. The button should use the Pencil icon from lucide-react and be enabled when exactly one item is selected. When clicked, it should determine if the selected item is a file or folder and open the appropriate rename dialog (RenameFileDialog for files, RenameFolderDialog for folders). The button should be visible whenever the bulk action bar is shown (selectedFiles.length > 0)."
+        }
+      ]
+    },
+    {
+      "id": "REQ-2",
+      "summary": "Add 'Rename' menu item to the three-dot context menu for each file/folder row in My Files, positioned before the 'Move' item, with an appropriate icon. Clicking it opens the rename dialog pre-filled with the current name.",
+      "acceptanceCriteria": [
+        "The three-dot context menu displays items in the order: Preview, Rename, Move, Delete.",
+        "The 'Rename' menu item has a rename/edit icon.",
+        "Clicking 'Rename' opens a rename dialog pre-filled with the current file or folder name.",
+        "After confirming the rename, the file or folder name updates in the list and a success toast is shown.",
+        "The rename dialog includes validation (e.g., non-empty name) and shows an error toast on failure."
+      ],
+      "file_operations": [
         {
           "path": "frontend/src/components/FileList.tsx",
           "operation": "modify",
-          "description": "Add viewMode state using useState with a default value of 'grid'. Pass viewMode and a setViewMode callback to the FileToolbar component. Implement conditional rendering logic that displays files and folders in a multi-column grid layout when viewMode is 'grid' and in a single-column list layout when viewMode is 'list'. Ensure grid layout uses CSS grid or flexbox with multiple columns and list layout uses a single column with row-based items. Maintain all existing functionality (search, sort, filter, pagination, preview, favorite, move, delete, rename) in both view modes."
+          "description": "Add a Rename menu item to the DropdownMenu for each file/folder row, positioned immediately before the existing Move menu item. The menu item should use the Pencil icon from lucide-react. When clicked, set the file/folder to be renamed in local state and open the appropriate rename dialog (RenameFileDialog for files, RenameFolderDialog for folders) pre-filled with the current name. The existing RenameFileDialog and RenameFolderDialog components already handle validation, success toasts, and error toasts, so wire them into the context menu action."
         },
         {
-          "path": "frontend/src/pages/Dashboard.tsx",
+          "path": "frontend/src/components/RenameFileDialog.tsx",
+          "operation": "create",
+          "description": "Create a RenameFileDialog component that accepts file metadata (id, name) as props, displays a dialog with a controlled input pre-filled with the current file name, and calls a backend mutation (using a useRenameFile hook from useQueries.ts) on confirmation. Include non-empty name validation, show success toast on successful rename, and show error toast on failure. Use shadcn/ui Dialog, Input, and Button components. Close the dialog after successful rename or when the user cancels."
+        },
+        {
+          "path": "frontend/src/hooks/useQueries.ts",
           "operation": "modify",
-          "description": "Verify that the FileList component is rendered without any props that would override its internal viewMode state. Ensure the Dashboard does not pass conflicting state or props that would interfere with the FileList's view toggle functionality. Test that the view mode toggle works correctly when navigating between folders and that the selected view mode persists within the session as long as the component remains mounted."
+          "description": "Add a useRenameFile mutation hook that accepts fileId and newName as parameters and calls actor.renameFile(fileId, newName). On success, invalidate the 'files' query key to refresh the file list. Return the mutation object with isLoading, error, and mutateAsync properties for use in the RenameFileDialog component."
         }
       ]
     }

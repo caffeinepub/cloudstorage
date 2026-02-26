@@ -2,8 +2,8 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-fix-the-grid-list-view-toggle-in-the-my-files-dashboard-filelist-section-so-that-clicking-the-grid-or-list-view-icon-in-the-filetoolbar-actually-switches-the-file-display-area-between-grid-layout-and-list-layout-the-viewmode-state-must-be-correctly-initialized-passed-down-from-the-parent-dashboard-or-filelist-and-consumed-by-the-file-rendering-logic-to-apply-the-correct-layout",
-      "featureTitle": "Fix the Grid & List view toggle in the 'My Files' (Dashboard/FileList) section so that clicking the grid or list view icon in the FileToolbar actually switches the file display area between grid layout and list layout. The viewMode state must be correctly initialized, passed down from the parent (Dashboard or FileList), and consumed by the file rendering logic to apply the correct layout.",
+      "featureId": "feature-in-the-my-files-section-add-a-rename-action-button-to-the-bulk-selection-action-bar-positioned-immediately-before-the-existing-move-button-the-rename-action-in-bulk-mode-should-open-a-rename-dialog-or-trigger-rename-for-the-selected-item-if-only-one-is-selected-include-an-appropriate-rename-icon-on-the-button",
+      "featureTitle": "In the My Files section, add a 'Rename' action button to the bulk selection action bar, positioned immediately before the existing 'Move' button. The Rename action in bulk mode should open a rename dialog (or trigger rename for the selected item if only one is selected). Include an appropriate rename icon on the button.",
       "files": [
         "frontend/src/components/FileList.tsx"
       ],
@@ -18,6 +18,28 @@
       ],
       "testIds": [
         "REQ-1"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-in-the-my-files-section-add-a-rename-menu-item-to-the-vertical-three-dot-ellipsis-context-menu-for-each-file-folder-row-positioned-immediately-before-the-existing-move-item-clicking-it-should-open-the-rename-dialog-for-that-file-or-folder-include-an-appropriate-rename-icon",
+      "featureTitle": "In the My Files section, add a 'Rename' menu item to the vertical three-dot (ellipsis) context menu for each file/folder row, positioned immediately before the existing 'Move' item. Clicking it should open the rename dialog for that file or folder. Include an appropriate rename icon.",
+      "files": [
+        "frontend/src/components/FileList.tsx",
+        "frontend/src/components/RenameFileDialog.tsx",
+        "frontend/src/hooks/useQueries.ts"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-2"
       ],
       "confidence": "high"
     }

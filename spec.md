@@ -1,12 +1,14 @@
 # Specification
 
 ## Summary
-**Goal:** Fix the Grid & List view toggle in the My Files (Dashboard/FileList) section so that clicking the view icons actually switches the file display layout.
+**Goal:** Add a "Rename" action to both the bulk selection action bar and the three-dot context menu in the My Files section of CloudVault.
 
 **Planned changes:**
-- Initialize and manage `viewMode` state correctly in the parent component (Dashboard or FileList)
-- Pass `viewMode` state and its setter down to the `FileToolbar` component
-- Update the file rendering logic to apply grid or list layout based on the current `viewMode`
-- Visually highlight the active view icon in `FileToolbar` to reflect the current mode
+- Add a "Rename" button with a rename/edit icon to the bulk action bar, positioned between "Download" and "Move" (order: Download, Rename, Move, Delete)
+- Add a "Rename" menu item with a rename/edit icon to the three-dot context menu for each file/folder row, positioned between "Preview" and "Move" (order: Preview, Rename, Move, Delete)
+- Clicking "Rename" in the bulk action bar opens the rename dialog when one item is selected
+- Clicking "Rename" in the three-dot menu opens the rename dialog pre-filled with the current file or folder name
+- On successful rename, update the item name in the list and show a success toast; show an error toast on failure
+- Reuse existing RenameFileDialog / RenameFolderDialog components
 
-**User-visible outcome:** Users can click the grid or list view icon in the My Files section and the file display area will switch between a multi-column grid layout and a single-column list layout, with the active icon visually highlighted.
+**User-visible outcome:** Users can rename files and folders directly from the bulk action bar and the three-dot context menu in My Files, without needing to navigate elsewhere.
