@@ -1,32 +1,41 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-25T11:20:13.541Z",
-  "summary": "The diff implements Rename functionality in the My Files section by adding RenameFileDialog component and modifying FileList.tsx to include Rename in both the bulk action bar and three-dot context menu. Most requirements appear implemented, but there are concerns about the file rename actually working (backend stub shows error toast) and some AC details need verification from truncated code.",
+  "generatedAt": "2026-02-27T07:03:53.120Z",
+  "summary": "The diff implements most of the required bulk action features. New components BulkDeleteDialog.tsx and BulkShareDialog.tsx are added, and FileList.tsx is modified to include the bulk action bar with all five buttons. However, the diff is truncated, making it impossible to fully verify all implementation details. Key concerns: BulkDeleteDialog adds an unrequested retention period radio group; REQ-2 and REQ-3 handler implementations are not visible in the truncated FileList.tsx.",
   "missing_requirements": [
     {
-      "requirement": "After confirming the rename, the file or folder name updates in the list and a success toast is shown (REQ-2 AC)",
-      "reason": "The RenameFileDialog.tsx explicitly shows a toast.error('Rename file is not yet supported by the backend.') instead of performing the rename and showing a success toast. The file rename dialog is a non-functional stub that never calls onRenamed or shows a success toast.",
+      "id": "REQ-2",
+      "requirement": "Download All bulk action: trigger download of each selected file with a toast notification.",
+      "reason": "FileList.tsx is truncated and the Download All handler implementation is not visible in the diff. While useDownloadFile is imported, the actual bulk download handler logic and toast notification cannot be confirmed.",
       "evidence": [
-        "frontend/src/components/RenameFileDialog.tsx"
+        "frontend/src/components/FileList.tsx"
+      ]
+    },
+    {
+      "id": "REQ-3",
+      "requirement": "Favorites All bulk action: add all selected files to Favorites using existing mutation hook with toast notification.",
+      "reason": "FileList.tsx is truncated; the Favorites All handler implementation is not visible. While useAddFavorite is imported, the bulk favorites logic cannot be confirmed from the visible diff.",
+      "evidence": [
+        "frontend/src/components/FileList.tsx"
       ]
     }
   ],
   "hallucinated_features": [
     {
-      "description": "useRenameFolder hook is imported in RenameFileDialog.tsx but never used — the component is for renaming files yet imports a folder rename hook without invoking it",
-      "reason": "The import of useRenameFolder in RenameFileDialog is unused dead code not requested by any requirement",
+      "description": "BulkDeleteDialog includes a Retention period radio group with options for 30, 60, and 90 days, and passes a retentionDays value to the onConfirm callback.",
+      "reason": "The build request only requires a confirmation dialog listing the number of files to be deleted. No retention period selection was requested for the bulk delete confirmation dialog.",
       "evidence": [
-        "frontend/src/components/RenameFileDialog.tsx"
+        "frontend/src/components/BulkDeleteDialog.tsx"
       ]
     }
   ],
-  "confidence": 0.72,
+  "confidence": 0.55,
   "changed_files": [
     "frontend-file-summaries.txt",
+    "frontend/src/components/BulkDeleteDialog.tsx",
+    "frontend/src/components/BulkShareDialog.tsx",
     "frontend/src/components/FileList.tsx",
-    "frontend/src/components/RenameFileDialog.tsx",
-    "frontend/src/hooks/useQueries.ts",
     "project_state.json"
   ]
 }

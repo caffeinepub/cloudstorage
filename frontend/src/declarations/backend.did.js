@@ -84,6 +84,11 @@ export const FavoriteFileInfo = IDL.Record({
   'fileId' : IDL.Text,
   'addedAt' : IDL.Nat,
 });
+export const FolderProtection = IDL.Record({
+  'isLocked' : IDL.Bool,
+  'failedAttempts' : IDL.Nat,
+  'hashedPassword' : IDL.Opt(IDL.Text),
+});
 export const AccessedFileInfo = IDL.Record({
   'lastAccessed' : IDL.Nat,
   'owner' : IDL.Principal,
@@ -217,6 +222,11 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'getFolder' : IDL.Func([IDL.Text], [IDL.Opt(Folder)], ['query']),
+  'getFolderProtectionStatus' : IDL.Func(
+      [IDL.Text],
+      [IDL.Opt(FolderProtection)],
+      ['query'],
+    ),
   'getMostAccessedFiles' : IDL.Func(
       [IDL.Nat],
       [IDL.Vec(AccessedFileInfo)],
@@ -298,10 +308,12 @@ export const idlService = IDL.Service({
   'permanentlyDeleteFolder' : IDL.Func([IDL.Text], [IDL.Bool], []),
   'recordFileAccess' : IDL.Func([IDL.Text], [IDL.Bool], []),
   'removeFavorite' : IDL.Func([IDL.Text], [IDL.Bool], []),
+  'removeFolderPassword' : IDL.Func([IDL.Text], [], []),
   'renameFolder' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
   'restoreFile' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [IDL.Bool], []),
   'revokeShare' : IDL.Func([IDL.Text, IDL.Principal], [IDL.Bool], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+  'setFolderPassword' : IDL.Func([IDL.Text, IDL.Text], [], []),
   'setGlobalRetentionPeriod' : IDL.Func([RetentionPeriod], [], []),
   'setUserQuota' : IDL.Func([IDL.Principal, IDL.Nat], [], []),
   'setUserRetentionPeriod' : IDL.Func([IDL.Principal, RetentionPeriod], [], []),
@@ -311,6 +323,7 @@ export const idlService = IDL.Service({
       [],
     ),
   'softDeleteFolder' : IDL.Func([IDL.Text, IDL.Opt(IDL.Nat)], [IDL.Bool], []),
+  'toggleFolderLock' : IDL.Func([IDL.Text], [], []),
   'unfavoriteFolder' : IDL.Func([IDL.Text], [IDL.Bool], []),
   'uploadFileChunk' : IDL.Func(
       [
@@ -325,6 +338,7 @@ export const idlService = IDL.Service({
       [IDL.Opt(IDL.Text)],
       [],
     ),
+  'verifyFolderPassword' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
 });
 
 export const idlInitArgs = [];
@@ -402,6 +416,11 @@ export const idlFactory = ({ IDL }) => {
     'fileName' : IDL.Text,
     'fileId' : IDL.Text,
     'addedAt' : IDL.Nat,
+  });
+  const FolderProtection = IDL.Record({
+    'isLocked' : IDL.Bool,
+    'failedAttempts' : IDL.Nat,
+    'hashedPassword' : IDL.Opt(IDL.Text),
   });
   const AccessedFileInfo = IDL.Record({
     'lastAccessed' : IDL.Nat,
@@ -544,6 +563,11 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getFolder' : IDL.Func([IDL.Text], [IDL.Opt(Folder)], ['query']),
+    'getFolderProtectionStatus' : IDL.Func(
+        [IDL.Text],
+        [IDL.Opt(FolderProtection)],
+        ['query'],
+      ),
     'getMostAccessedFiles' : IDL.Func(
         [IDL.Nat],
         [IDL.Vec(AccessedFileInfo)],
@@ -629,10 +653,12 @@ export const idlFactory = ({ IDL }) => {
     'permanentlyDeleteFolder' : IDL.Func([IDL.Text], [IDL.Bool], []),
     'recordFileAccess' : IDL.Func([IDL.Text], [IDL.Bool], []),
     'removeFavorite' : IDL.Func([IDL.Text], [IDL.Bool], []),
+    'removeFolderPassword' : IDL.Func([IDL.Text], [], []),
     'renameFolder' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
     'restoreFile' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [IDL.Bool], []),
     'revokeShare' : IDL.Func([IDL.Text, IDL.Principal], [IDL.Bool], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+    'setFolderPassword' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'setGlobalRetentionPeriod' : IDL.Func([RetentionPeriod], [], []),
     'setUserQuota' : IDL.Func([IDL.Principal, IDL.Nat], [], []),
     'setUserRetentionPeriod' : IDL.Func(
@@ -646,6 +672,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'softDeleteFolder' : IDL.Func([IDL.Text, IDL.Opt(IDL.Nat)], [IDL.Bool], []),
+    'toggleFolderLock' : IDL.Func([IDL.Text], [], []),
     'unfavoriteFolder' : IDL.Func([IDL.Text], [IDL.Bool], []),
     'uploadFileChunk' : IDL.Func(
         [
@@ -660,6 +687,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Opt(IDL.Text)],
         [],
       ),
+    'verifyFolderPassword' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
   });
 };
 

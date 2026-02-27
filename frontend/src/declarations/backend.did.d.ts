@@ -58,6 +58,11 @@ export interface Folder {
   'createdAt' : bigint,
   'parentId' : [] | [string],
 }
+export interface FolderProtection {
+  'isLocked' : boolean,
+  'failedAttempts' : bigint,
+  'hashedPassword' : [] | [string],
+}
 export interface Notification {
   'id' : bigint,
   'notificationType' : NotificationType,
@@ -192,6 +197,7 @@ export interface _SERVICE {
   'getFilesInFolder' : ActorMethod<[string], Array<FileMetadata>>,
   'getFilesInFolderWithFavorites' : ActorMethod<[string], Array<FileMetadata>>,
   'getFolder' : ActorMethod<[string], [] | [Folder]>,
+  'getFolderProtectionStatus' : ActorMethod<[string], [] | [FolderProtection]>,
   'getMostAccessedFiles' : ActorMethod<[bigint], Array<AccessedFileInfo>>,
   'getNotifications' : ActorMethod<[], Array<Notification>>,
   'getRecentActivities' : ActorMethod<[bigint], Array<RecentActivity>>,
@@ -234,10 +240,12 @@ export interface _SERVICE {
   'permanentlyDeleteFolder' : ActorMethod<[string], boolean>,
   'recordFileAccess' : ActorMethod<[string], boolean>,
   'removeFavorite' : ActorMethod<[string], boolean>,
+  'removeFolderPassword' : ActorMethod<[string], undefined>,
   'renameFolder' : ActorMethod<[string, string], boolean>,
   'restoreFile' : ActorMethod<[string, [] | [string]], boolean>,
   'revokeShare' : ActorMethod<[string, Principal], boolean>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'setFolderPassword' : ActorMethod<[string, string], undefined>,
   'setGlobalRetentionPeriod' : ActorMethod<[RetentionPeriod], undefined>,
   'setUserQuota' : ActorMethod<[Principal, bigint], undefined>,
   'setUserRetentionPeriod' : ActorMethod<
@@ -252,6 +260,7 @@ export interface _SERVICE {
    * / Soft-delete method for folders (Moves folders to trash with retention period)
    */
   'softDeleteFolder' : ActorMethod<[string, [] | [bigint]], boolean>,
+  'toggleFolderLock' : ActorMethod<[string], undefined>,
   'unfavoriteFolder' : ActorMethod<[string], boolean>,
   /**
    * / Extended uploadFileChunk
@@ -260,6 +269,7 @@ export interface _SERVICE {
     [string, string, bigint, Uint8Array, bigint, bigint, [] | [string]],
     [] | [string]
   >,
+  'verifyFolderPassword' : ActorMethod<[string, string], boolean>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

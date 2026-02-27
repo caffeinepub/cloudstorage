@@ -1,18 +1,18 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-25T11:20:13.545Z",
+  "generatedAt": "2026-02-27T07:03:53.123Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 2,
-    "implemented": 2,
+    "total": 6,
+    "implemented": 6,
     "items": [
       {
         "id": "REQ-1",
-        "summary": "In the My Files section, add a 'Rename' action button to the bulk selection action bar, positioned immediately before the existing 'Move' button. The Rename action in bulk mode should open a rename dialog (or trigger rename for the selected item if only one is selected). Include an appropriate rename icon on the button.",
+        "summary": "Add five new bulk action icon buttons to the Selection Bulk Action bar in FileList.tsx, placed immediately after the 'Deselect All' button. The five buttons are: (1) Download All, (2) Favorites All, (3) Shared All, (4) Move All, (5) Delete All. All five buttons must be hidden when only 1 file is selected and must only appear when 2 or more files are selected.",
         "status": "implemented",
         "plannedFiles": [
           "frontend/src/components/FileList.tsx"
@@ -23,17 +23,61 @@
       },
       {
         "id": "REQ-2",
-        "summary": "In the My Files section, add a 'Rename' menu item to the vertical three-dot (ellipsis) context menu for each file/folder row, positioned immediately before the existing 'Move' item. Clicking it should open the rename dialog for that file or folder. Include an appropriate rename icon.",
+        "summary": "Implement the 'Download All' bulk action: when the user clicks Download All with 2+ files selected, trigger a download of each selected file to the user's device using the existing file retrieval mechanism (similar to the single-file download in FilePreview.tsx).",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/components/FileList.tsx",
-          "frontend/src/components/RenameFileDialog.tsx",
-          "frontend/src/hooks/useQueries.ts"
+          "frontend/src/components/FileList.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/components/FileList.tsx",
-          "frontend/src/components/RenameFileDialog.tsx",
-          "frontend/src/hooks/useQueries.ts"
+          "frontend/src/components/FileList.tsx"
+        ]
+      },
+      {
+        "id": "REQ-3",
+        "summary": "Implement the 'Favorites All' bulk action: when the user clicks Favorites All with 2+ files selected, add all selected files to the Favorites section using the existing favorites mutation hook (useAddToFavorites or equivalent from useQueries.ts).",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/components/FileList.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/components/FileList.tsx"
+        ]
+      },
+      {
+        "id": "REQ-4",
+        "summary": "Implement the 'Shared All' bulk action: when the user clicks Shared All with 2+ files selected, move or mark all selected files as shared using the existing share mutation hooks from useQueries.ts. If sharing requires a recipient or permission selection, open a minimal dialog to collect the required input.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/components/BulkShareDialog.tsx",
+          "frontend/src/components/FileList.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/components/BulkShareDialog.tsx",
+          "frontend/src/components/FileList.tsx"
+        ]
+      },
+      {
+        "id": "REQ-5",
+        "summary": "Implement the 'Move All' bulk action: when the user clicks Move All with 2+ files selected, open the existing MoveToFolderDialog (or equivalent) configured to move all selected files to a chosen destination folder using the useMoveFilesToFolder mutation.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/components/FileList.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/components/FileList.tsx"
+        ]
+      },
+      {
+        "id": "REQ-6",
+        "summary": "Implement the 'Delete All' bulk action: when the user clicks Delete All with 2+ files selected, open a confirmation dialog (reusing or extending DeleteFileDialog/DeleteConfirmationDialog) and upon confirmation, delete all selected files at once using the existing delete mutation hooks.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/components/BulkDeleteDialog.tsx",
+          "frontend/src/components/FileList.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/components/BulkDeleteDialog.tsx",
+          "frontend/src/components/FileList.tsx"
         ]
       }
     ]
@@ -43,9 +87,9 @@
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
+    "frontend/src/components/BulkDeleteDialog.tsx",
+    "frontend/src/components/BulkShareDialog.tsx",
     "frontend/src/components/FileList.tsx",
-    "frontend/src/components/RenameFileDialog.tsx",
-    "frontend/src/hooks/useQueries.ts",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

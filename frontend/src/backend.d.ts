@@ -39,6 +39,11 @@ export interface RecentActivity {
     details: string;
     relativeTime: string;
 }
+export interface FolderProtection {
+    isLocked: boolean;
+    failedAttempts: bigint;
+    hashedPassword?: string;
+}
 export interface ActivityLog {
     action: string;
     user: Principal;
@@ -46,15 +51,6 @@ export interface ActivityLog {
     fileId: string;
     timestamp: bigint;
     details: string;
-}
-export interface AccessedFileInfo {
-    lastAccessed: bigint;
-    owner: Principal;
-    metadata?: FileMetadata;
-    fileName: string;
-    fileId: string;
-    relativeTime: string;
-    accessCount: bigint;
 }
 export interface SharedFileInfo {
     ownerEmail: string;
@@ -66,6 +62,15 @@ export interface SharedFileInfo {
     sharedWith: Principal;
     fileId: string;
     message: string;
+}
+export interface AccessedFileInfo {
+    lastAccessed: bigint;
+    owner: Principal;
+    metadata?: FileMetadata;
+    fileName: string;
+    fileId: string;
+    relativeTime: string;
+    accessCount: bigint;
 }
 export type RetentionPeriod = bigint;
 export interface SharePermissions {
@@ -168,6 +173,7 @@ export interface backendInterface {
     getFilesInFolder(folderId: string): Promise<Array<FileMetadata>>;
     getFilesInFolderWithFavorites(folderId: string): Promise<Array<FileMetadata>>;
     getFolder(folderId: string): Promise<Folder | null>;
+    getFolderProtectionStatus(folderId: string): Promise<FolderProtection | null>;
     getMostAccessedFiles(limit: bigint): Promise<Array<AccessedFileInfo>>;
     getNotifications(): Promise<Array<Notification>>;
     getRecentActivities(limit: bigint): Promise<Array<RecentActivity>>;
@@ -208,10 +214,12 @@ export interface backendInterface {
     permanentlyDeleteFolder(folderId: string): Promise<boolean>;
     recordFileAccess(fileId: string): Promise<boolean>;
     removeFavorite(fileId: string): Promise<boolean>;
+    removeFolderPassword(folderId: string): Promise<void>;
     renameFolder(folderId: string, newName: string): Promise<boolean>;
     restoreFile(fileId: string, newPath: string | null): Promise<boolean>;
     revokeShare(fileId: string, recipient: Principal): Promise<boolean>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    setFolderPassword(folderId: string, hashedPassword: string): Promise<void>;
     setGlobalRetentionPeriod(period: RetentionPeriod): Promise<void>;
     setUserQuota(user: Principal, quota: bigint): Promise<void>;
     setUserRetentionPeriod(user: Principal, retentionPeriod: RetentionPeriod): Promise<void>;
@@ -220,9 +228,11 @@ export interface backendInterface {
      * / Soft-delete method for folders (Moves folders to trash with retention period)
      */
     softDeleteFolder(folderId: string, customRetentionPeriodDays: bigint | null): Promise<boolean>;
+    toggleFolderLock(folderId: string): Promise<void>;
     unfavoriteFolder(folderId: string): Promise<boolean>;
     /**
      * / Extended uploadFileChunk
      */
     uploadFileChunk(fileId: string, fileName: string, chunkIndex: bigint, chunkData: Uint8Array, totalChunks: bigint, totalSize: bigint, folderId: string | null): Promise<string | null>;
+    verifyFolderPassword(folderId: string, attempt: string): Promise<boolean>;
 }

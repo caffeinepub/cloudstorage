@@ -7,15 +7,16 @@ import Int "mo:core/Int";
 import Time "mo:core/Time";
 import Set "mo:core/Set";
 import List "mo:core/List";
-
+import Iter "mo:core/Iter";
 import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
-import Iter "mo:core/Iter";
+
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
 import Storage "blob-storage/Storage";
 import MixinStorage "blob-storage/Mixin";
 
+// No explicit migration needed!
 actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
@@ -172,6 +173,12 @@ actor {
     createdAt : Nat;
   };
 
+  public type FolderProtection = {
+    hashedPassword : ?Text;
+    isLocked : Bool;
+    failedAttempts : Nat;
+  };
+
   type TrashFolderMetadata = {
     folder : Folder;
     deletedAt : Nat;
@@ -204,6 +211,7 @@ actor {
   let folderMetadata = Map.empty<Text, Folder>();
   let userFavoriteFolders = Map.empty<Principal, Set.Set<Text>>();
   let trashFolderMetadata = Map.empty<Text, TrashFolderMetadata>();
+  let folderProtections = Map.empty<Text, FolderProtection>();
 
   func getUserQuota(user : Principal) : Nat {
     switch (userQuotas.get(user)) {
@@ -505,6 +513,14 @@ actor {
     };
 
     folderMetadata.add(folderId, folder);
+
+    let protection : FolderProtection = {
+      hashedPassword = null;
+      isLocked = false;
+      failedAttempts = 0;
+    };
+    folderProtections.add(folderId, protection);
+
     folderId;
   };
 
@@ -658,7 +674,7 @@ actor {
 
     switch (folderMetadata.get(folderId)) {
       case (?folder) {
-        if (folder.owner != caller and not (AccessControl.isAdmin(accessControlState, caller))) {
+        if (folder.owner != caller and not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
           Runtime.trap("Unauthorized: Cannot rename folders owned by others");
         };
 
@@ -897,7 +913,7 @@ actor {
 
     switch (folderMetadata.get(folderId)) {
       case (?folder) {
-        if (folder.owner != caller and not (AccessControl.isAdmin(accessControlState, caller))) {
+        if (folder.owner != caller and not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
           Runtime.trap("Unauthorized: Cannot view folder contents for others");
         };
 
@@ -915,7 +931,7 @@ actor {
 
     switch (folderMetadata.get(folderId)) {
       case (?folder) {
-        if (folder.owner != caller and not (AccessControl.isAdmin(accessControlState, caller))) {
+        if (folder.owner != caller and not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
           Runtime.trap("Unauthorized: Cannot view folder contents for others");
         };
 
@@ -960,7 +976,7 @@ actor {
       case (?id) {
         switch (folderMetadata.get(id)) {
           case (?folder) {
-            if (folder.owner != caller and not (AccessControl.isAdmin(accessControlState, caller))) {
+            if (folder.owner != caller and not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
               Runtime.trap("Unauthorized: Cannot upload to folders owned by others");
             };
           };
@@ -1898,7 +1914,7 @@ actor {
     switch (folderMetadata.get(folderId)) {
       case (?folder) {
         // Validate folder ownership
-        if (folder.owner != caller and not (AccessControl.isAdmin(accessControlState, caller))) {
+        if (folder.owner != caller and not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
           Runtime.trap("Unauthorized: Cannot delete folders owned by others");
         };
 
@@ -1933,6 +1949,146 @@ actor {
         );
 
         true;
+      };
+      case (null) {
+        Runtime.trap("Folder not found");
+      };
+    };
+  };
+
+  // Folder protection functions
+
+  // Set (or update) a password for a folder.
+  // Only the folder owner or an admin can set a password.
+  public shared ({ caller }) func setFolderPassword(folderId : Text, hashedPassword : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can set folder passwords");
+    };
+
+    switch (folderMetadata.get(folderId)) {
+      case (?folder) {
+        if (folder.owner != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Only the folder owner or an admin can set a folder password");
+        };
+        let protection : FolderProtection = {
+          hashedPassword = ?hashedPassword;
+          isLocked = true;
+          failedAttempts = 0;
+        };
+        folderProtections.add(folderId, protection);
+      };
+      case (null) {
+        Runtime.trap("Folder not found");
+      };
+    };
+  };
+
+  // Remove the password for a folder.
+  // Only the folder owner or an admin can remove a password.
+  public shared ({ caller }) func removeFolderPassword(folderId : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can remove folder passwords");
+    };
+
+    switch (folderMetadata.get(folderId)) {
+      case (?folder) {
+        if (folder.owner != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Only the folder owner or an admin can remove a folder password");
+        };
+        let protection : FolderProtection = {
+          hashedPassword = null;
+          isLocked = false;
+          failedAttempts = 0;
+        };
+        folderProtections.add(folderId, protection);
+      };
+      case (null) {
+        Runtime.trap("Folder not found");
+      };
+    };
+  };
+
+  // Toggle the locked state of a folder.
+  // Only the folder owner or an admin can toggle the lock.
+  public shared ({ caller }) func toggleFolderLock(folderId : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can toggle folder lock");
+    };
+
+    switch (folderMetadata.get(folderId)) {
+      case (?folder) {
+        if (folder.owner != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Only the folder owner or an admin can toggle the folder lock");
+        };
+        switch (folderProtections.get(folderId)) {
+          case (?protection) {
+            let newState = {
+              protection with isLocked = not protection.isLocked;
+            };
+            folderProtections.add(folderId, newState);
+          };
+          case (null) {
+            Runtime.trap("Folder protection record not found");
+          };
+        };
+      };
+      case (null) {
+        Runtime.trap("Folder not found");
+      };
+    };
+  };
+
+  // Verify a password attempt for a folder.
+  // Any authenticated user can attempt to verify a folder password (e.g., to unlock a shared folder).
+  public shared ({ caller }) func verifyFolderPassword(folderId : Text, attempt : Text) : async Bool {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can verify folder passwords");
+    };
+
+    switch (folderProtections.get(folderId)) {
+      case (?protection) {
+        switch (protection.hashedPassword) {
+          case (?storedHash) {
+            if (storedHash == attempt) {
+              let newState = {
+                protection with
+                failedAttempts = 0;
+                isLocked = false;
+              };
+              folderProtections.add(folderId, newState);
+              true;
+            } else {
+              let newState = {
+                protection with failedAttempts = protection.failedAttempts + 1;
+              };
+              folderProtections.add(folderId, newState);
+              false;
+            };
+          };
+          case (null) {
+            false;
+          };
+        };
+      };
+      case (null) {
+        false;
+      };
+    };
+  };
+
+  // Get the current protection status for a folder.
+  // Only the folder owner or an admin can view the full protection record.
+  public query ({ caller }) func getFolderProtectionStatus(folderId : Text) : async ?FolderProtection {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view folder protection status");
+    };
+
+    switch (folderMetadata.get(folderId)) {
+      case (?folder) {
+        if (folder.owner != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Only the folder owner or an admin can view folder protection status");
+        };
+        folderProtections.get(folderId);
       };
       case (null) {
         Runtime.trap("Folder not found");

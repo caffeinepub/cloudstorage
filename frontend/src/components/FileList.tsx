@@ -1,495 +1,595 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
-  Folder, MoreVertical, Star, StarOff, Trash2,
-  Eye, FolderOpen, Edit2, Move, Download,
-  X, FileText, FileImage, FileVideo, FileAudio,
-  FileCode, FileArchive, FileSpreadsheet, File,
+  File,
+  Folder as FolderIcon,
+  MoreVertical,
+  Trash2,
+  Download,
+  Star,
+  StarOff,
+  Move,
   Pencil,
+  Lock,
+  LockOpen,
+  Shield,
+  FolderOpen,
+  Eye,
+  Heart,
+  Share2,
+  FolderInput,
+  CheckSquare,
+  Square,
+  Loader2,
+  X,
 } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'sonner';
+import type { FileMetadata, Folder } from '../backend';
+import {
+  useListFiles,
+  useListFolders,
+  useDeleteFile,
+  useAddFavorite,
+  useRemoveFavorite,
+  useIsFavorite,
+  useGetFolderProtectionStatus,
+  useDownloadFile,
+  useMoveFilesToFolder,
+} from '../hooks/useQueries';
+import { useActor } from '../hooks/useActor';
 import FileToolbar from './FileToolbar';
 import FilePreview from './FilePreview';
 import DeleteFileDialog from './DeleteFileDialog';
-import DeleteFolderToTrashDialog from './DeleteFolderToTrashDialog';
+import DeleteFolderDialog from './DeleteFolderDialog';
+import MoveToFolderDialog from './MoveToFolderDialog';
+import MoveFolderDialog from './MoveFolderDialog';
 import RenameFolderDialog from './RenameFolderDialog';
 import RenameFileDialog from './RenameFileDialog';
-import MoveFolderDialog from './MoveFolderDialog';
-import MoveToFolderDialog from './MoveToFolderDialog';
-import {
-  useListFiles, useListFolders, useAddFavorite, useRemoveFavorite,
-  useIsFavorite, useGetFilesInFolder, useDeleteFile, useDeleteFolderToTrash,
-  useRecordFileAccess, useDownloadFile,
-} from '../hooks/useQueries';
+import FolderProtectionModal from './FolderProtectionModal';
+import FolderPasswordPrompt, { isFolderLockedOut } from './FolderPasswordPrompt';
+import BulkDeleteDialog from './BulkDeleteDialog';
+import BulkShareDialog from './BulkShareDialog';
 import { useFileSearch } from '../hooks/useFileSearch';
 import { useFileFilters } from '../hooks/useFileFilters';
 import { useFileSorting } from '../hooks/useFileSorting';
 import { usePagination } from '../hooks/usePagination';
 import PaginationControls from './PaginationControls';
-import type { FileMetadata, Folder as FolderType } from '../backend';
-import { toast } from 'sonner';
-import { useActor } from '../hooks/useActor';
 
 interface FileListProps {
   currentFolderId?: string | null;
   onFolderClick?: (folderId: string) => void;
 }
 
-function formatBytes(n: bigint) {
-  const v = Number(n);
-  if (v < 1024) return `${v} B`;
-  if (v < 1024 * 1024) return `${(v / 1024).toFixed(1)} KB`;
-  if (v < 1024 * 1024 * 1024) return `${(v / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(v / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatSize(size: bigint) {
+  const bytes = Number(size);
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function formatDate(ts: bigint): string {
-  if (!ts || ts === 0n) return '—';
+function formatDate(ts: bigint) {
+  if (!ts) return '—';
   const ms = Number(ts) / 1_000_000;
-  const d = new Date(ms);
-  if (isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  return new Date(ms).toLocaleDateString();
 }
 
-function getFileExtension(name: string): string {
-  const parts = name.split('.');
-  if (parts.length < 2) return '';
-  return parts[parts.length - 1].toLowerCase();
+function getFileIconColor(name: string): string {
+  const ext = name.split('.').pop()?.toLowerCase() ?? '';
+  const map: Record<string, string> = {
+    pdf: 'text-red-500',
+    doc: 'text-blue-500',
+    docx: 'text-blue-500',
+    xls: 'text-green-500',
+    xlsx: 'text-green-500',
+    jpg: 'text-purple-500',
+    jpeg: 'text-purple-500',
+    png: 'text-purple-500',
+    gif: 'text-purple-500',
+    mp4: 'text-orange-500',
+    txt: 'text-gray-500',
+  };
+  return map[ext] ?? 'text-muted-foreground';
 }
 
-function getFileTypeLabel(name: string): string {
-  const ext = getFileExtension(name);
-  const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'ico', 'tiff'];
-  const videoExts = ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv'];
-  const audioExts = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a'];
-  const codeExts = ['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'cs', 'go', 'rs', 'php', 'rb', 'html', 'css', 'json', 'xml', 'yaml', 'yml', 'sh', 'bash'];
-  const archiveExts = ['zip', 'tar', 'gz', 'rar', '7z', 'bz2'];
-  const spreadsheetExts = ['xls', 'xlsx', 'csv', 'ods'];
-  const docExts = ['doc', 'docx', 'odt', 'rtf'];
+// ── Protection badge ──────────────────────────────────────────────────────────
 
-  if (ext === 'pdf') return 'PDF';
-  if (imageExts.includes(ext)) return 'Image';
-  if (videoExts.includes(ext)) return 'Video';
-  if (audioExts.includes(ext)) return 'Audio';
-  if (codeExts.includes(ext)) return 'Code';
-  if (archiveExts.includes(ext)) return 'Archive';
-  if (spreadsheetExts.includes(ext)) return 'Spreadsheet';
-  if (docExts.includes(ext)) return 'Document';
-  if (ext === 'txt') return 'Text';
-  if (ext) return ext.toUpperCase();
-  return 'File';
+function ProtectionBadge({ isLocked }: { isLocked: boolean }) {
+  return isLocked ? (
+    <span title="Folder is locked">
+      <Lock className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+    </span>
+  ) : (
+    <span title="Folder is protected (unlocked)">
+      <LockOpen className="h-3.5 w-3.5 text-green-500 shrink-0" />
+    </span>
+  );
 }
 
-function FileTypeIcon({ name, className = 'h-4 w-4' }: { name: string; className?: string }) {
-  const ext = getFileExtension(name);
-  const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'ico', 'tiff'];
-  const videoExts = ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv'];
-  const audioExts = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a'];
-  const codeExts = ['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'cs', 'go', 'rs', 'php', 'rb', 'html', 'css', 'json', 'xml', 'yaml', 'yml', 'sh', 'bash'];
-  const archiveExts = ['zip', 'tar', 'gz', 'rar', '7z', 'bz2'];
-  const spreadsheetExts = ['xls', 'xlsx', 'csv', 'ods'];
+// ── File row (list view) ──────────────────────────────────────────────────────
 
-  if (imageExts.includes(ext)) return <FileImage className={`${className} text-emerald-500`} />;
-  if (videoExts.includes(ext)) return <FileVideo className={`${className} text-purple-500`} />;
-  if (audioExts.includes(ext)) return <FileAudio className={`${className} text-pink-500`} />;
-  if (codeExts.includes(ext)) return <FileCode className={`${className} text-blue-500`} />;
-  if (archiveExts.includes(ext)) return <FileArchive className={`${className} text-orange-500`} />;
-  if (spreadsheetExts.includes(ext)) return <FileSpreadsheet className={`${className} text-green-600`} />;
-  if (ext === 'pdf') return <FileText className={`${className} text-red-500`} />;
-  if (['doc', 'docx', 'odt', 'rtf', 'txt'].includes(ext)) return <FileText className={`${className} text-blue-400`} />;
-  return <File className={`${className} text-muted-foreground`} />;
-}
-
-// ── Table Row for File ────────────────────────────────────────────────────────
-
-function FileTableRow({
+function FileRow({
   file,
-  selected,
-  onCheckboxClick,
+  isSelected,
+  onSelect,
   onPreview,
   onDelete,
   onMove,
   onRename,
 }: {
   file: FileMetadata;
-  selected: boolean;
-  onCheckboxClick: (e: React.MouseEvent) => void;
-  onPreview: (f: FileMetadata) => void;
-  onDelete: (f: FileMetadata) => void;
-  onMove: (fileId: string) => void;
-  onRename: (f: FileMetadata) => void;
+  isSelected: boolean;
+  onSelect: (id: string, checked: boolean) => void;
+  onPreview: (file: FileMetadata) => void;
+  onDelete: (file: FileMetadata) => void;
+  onMove: (file: FileMetadata) => void;
+  onRename: (file: FileMetadata) => void;
 }) {
   const { data: isFav } = useIsFavorite(file.id);
   const addFav = useAddFavorite();
   const removeFav = useRemoveFavorite();
 
   return (
-    <tr
-      className={`group border-b border-border transition-colors hover:bg-accent/5 ${
-        selected ? 'bg-primary/5' : ''
-      }`}
-    >
-      <td className="w-10 px-3 py-3">
-        <div onClick={onCheckboxClick} className="flex items-center justify-center">
-          <Checkbox
-            checked={selected}
-            onCheckedChange={() => {}}
-            className="cursor-pointer"
-            aria-label={`Select ${file.name}`}
-          />
-        </div>
+    <tr className="border-b border-border hover:bg-muted/30 transition-colors group">
+      <td className="py-3 pl-4 pr-2 w-10">
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={(checked) => onSelect(file.id, !!checked)}
+        />
       </td>
-      <td className="px-3 py-3 min-w-0">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <FileTypeIcon name={file.name} className="h-4 w-4" />
-          </div>
-          <span
-            className="text-sm font-medium text-foreground truncate cursor-pointer hover:text-primary transition-colors"
-            onClick={() => onPreview(file)}
-            title={file.name}
-          >
-            {file.name}
-          </span>
-        </div>
+      <td className="py-3 px-2">
+        <button
+          className="flex items-center gap-2 text-left hover:text-primary transition-colors w-full"
+          onClick={() => onPreview(file)}
+        >
+          <File className={`h-4 w-4 shrink-0 ${getFileIconColor(file.name)}`} />
+          <span className="text-sm font-medium truncate max-w-xs">{file.name}</span>
+        </button>
       </td>
-      <td className="px-3 py-3 text-sm text-muted-foreground whitespace-nowrap">
+      <td className="py-3 px-2 text-sm text-muted-foreground hidden md:table-cell">
+        {formatSize(file.size)}
+      </td>
+      <td className="py-3 px-2 text-sm text-muted-foreground hidden lg:table-cell">
         {formatDate(file.uploadedAt)}
       </td>
-      <td className="px-3 py-3 text-sm text-muted-foreground whitespace-nowrap">
-        {getFileTypeLabel(file.name)}
-      </td>
-      <td className="px-3 py-3 text-sm text-muted-foreground whitespace-nowrap">
-        {formatBytes(file.size)}
-      </td>
-      <td className="px-3 py-3 w-28">
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onPreview(file)}>
-            <Eye className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => (isFav ? removeFav.mutate(file.id) : addFav.mutate(file.id))}
-          >
-            {isFav
-              ? <StarOff className="h-3.5 w-3.5 text-amber-500" />
-              : <Star className="h-3.5 w-3.5" />}
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-7 w-7">
-                <MoreVertical className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onPreview(file)}>
-                <Eye className="h-4 w-4 mr-2" /> Preview
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onRename(file)}>
-                <Pencil className="h-4 w-4 mr-2" /> Rename
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onMove(file.id)}>
-                <Move className="h-4 w-4 mr-2" /> Move
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() => onDelete(file)}
-              >
-                <Trash2 className="h-4 w-4 mr-2" /> Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+      <td className="py-3 px-2 pr-4 text-right">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 opacity-0 group-hover:opacity-100"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onPreview(file)}>
+              <Eye className="h-4 w-4 mr-2" /> Preview
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onRename(file)}>
+              <Pencil className="h-4 w-4 mr-2" /> Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onMove(file)}>
+              <Move className="h-4 w-4 mr-2" /> Move
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                if (isFav) removeFav.mutate(file.id);
+                else addFav.mutate(file.id);
+              }}
+            >
+              {isFav ? (
+                <>
+                  <StarOff className="h-4 w-4 mr-2" /> Remove Favorite
+                </>
+              ) : (
+                <>
+                  <Star className="h-4 w-4 mr-2" /> Add to Favorites
+                </>
+              )}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => onDelete(file)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" /> Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </td>
     </tr>
   );
 }
 
-// ── Table Row for Folder ──────────────────────────────────────────────────────
+// ── Folder row with protection check (list view) ──────────────────────────────
 
-function FolderTableRow({
+function FolderRowWithProtectionCheck({
   folder,
-  selected,
-  onCheckboxClick,
-  onOpen,
+  isSelected,
+  onSelect,
+  onClick,
+  onNavigationCheck,
   onDelete,
-  onRename,
   onMove,
+  onRename,
+  onProtect,
+  pendingNavigationFolder,
 }: {
-  folder: FolderType;
-  selected: boolean;
-  onCheckboxClick: (e: React.MouseEvent) => void;
-  onOpen: (id: string) => void;
-  onDelete: (f: FolderType) => void;
-  onRename: (f: FolderType) => void;
-  onMove: (f: FolderType) => void;
+  folder: Folder;
+  isSelected: boolean;
+  onSelect: (id: string, checked: boolean) => void;
+  onClick: (folder: Folder) => void;
+  onNavigationCheck: (
+    folder: Folder,
+    protection: { hashedPassword?: string; isLocked: boolean } | null | undefined,
+  ) => void;
+  onDelete: (folder: Folder) => void;
+  onMove: (folder: Folder) => void;
+  onRename: (folder: Folder) => void;
+  onProtect: (folder: Folder) => void;
+  pendingNavigationFolder: Folder | null;
 }) {
+  const { data: protection } = useGetFolderProtectionStatus(folder.id);
+
+  React.useEffect(() => {
+    if (pendingNavigationFolder?.id === folder.id) {
+      onNavigationCheck(folder, protection);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingNavigationFolder?.id, folder.id, protection]);
+
   return (
-    <tr
-      className={`group border-b border-border transition-colors hover:bg-amber-50/40 dark:hover:bg-amber-900/10 ${
-        selected ? 'bg-amber-50/60 dark:bg-amber-900/15' : ''
-      }`}
-    >
-      <td className="w-10 px-3 py-3">
-        <div onClick={onCheckboxClick} className="flex items-center justify-center">
-          <Checkbox
-            checked={selected}
-            onCheckedChange={() => {}}
-            className="cursor-pointer"
-            aria-label={`Select ${folder.name}`}
-          />
-        </div>
+    <tr className="border-b border-border hover:bg-muted/30 transition-colors group">
+      <td className="py-3 pl-4 pr-2 w-10">
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={(checked) => onSelect(folder.id, !!checked)}
+        />
       </td>
-      <td className="px-3 py-3 min-w-0">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
-            <Folder className="h-4 w-4 text-amber-500" />
-          </div>
-          <span
-            className="text-sm font-semibold text-foreground truncate cursor-pointer hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
-            onClick={() => onOpen(folder.id)}
-            title={folder.name}
-          >
-            {folder.name}
-          </span>
-        </div>
+      <td className="py-3 px-2">
+        <button
+          className="flex items-center gap-2 text-left hover:text-primary transition-colors w-full"
+          onClick={() => onClick(folder)}
+        >
+          <FolderIcon className="h-4 w-4 shrink-0 text-amber-400" />
+          <span className="text-sm font-medium truncate max-w-xs">{folder.name}</span>
+          {protection?.hashedPassword && (
+            <ProtectionBadge isLocked={protection.isLocked} />
+          )}
+        </button>
       </td>
-      <td className="px-3 py-3 text-sm text-muted-foreground whitespace-nowrap">
+      <td className="py-3 px-2 text-sm text-muted-foreground hidden md:table-cell">—</td>
+      <td className="py-3 px-2 text-sm text-muted-foreground hidden lg:table-cell">
         {formatDate(folder.createdAt)}
       </td>
-      <td className="px-3 py-3 text-sm whitespace-nowrap">
-        <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium text-xs bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 rounded-full">
-          <Folder className="h-3 w-3" />
-          Folder
-        </span>
-      </td>
-      <td className="px-3 py-3 text-sm text-muted-foreground whitespace-nowrap">
-        —
-      </td>
-      <td className="px-3 py-3 w-28">
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onOpen(folder.id)}>
-            <FolderOpen className="h-3.5 w-3.5 text-amber-500" />
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-7 w-7">
-                <MoreVertical className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onOpen(folder.id)}>
-                <FolderOpen className="h-4 w-4 mr-2" /> Open
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onRename(folder)}>
-                <Pencil className="h-4 w-4 mr-2" /> Rename
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onMove(folder)}>
-                <Move className="h-4 w-4 mr-2" /> Move
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() => onDelete(folder)}
-              >
-                <Trash2 className="h-4 w-4 mr-2" /> Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+      <td className="py-3 px-2 pr-4 text-right">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 opacity-0 group-hover:opacity-100"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onClick(folder)}>
+              <FolderOpen className="h-4 w-4 mr-2" /> Open
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onRename(folder)}>
+              <Pencil className="h-4 w-4 mr-2" /> Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onMove(folder)}>
+              <Move className="h-4 w-4 mr-2" /> Move
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onProtect(folder)}>
+              <Shield className="h-4 w-4 mr-2" /> Protect Folder
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => onDelete(folder)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" /> Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </td>
     </tr>
   );
 }
 
-// ── FileCard (grid) ───────────────────────────────────────────────────────────
+// ── Folder card with protection check (grid view) ─────────────────────────────
+
+function FolderCardWithProtectionCheck({
+  folder,
+  isSelected,
+  onSelect,
+  onClick,
+  onNavigationCheck,
+  onDelete,
+  onMove,
+  onRename,
+  onProtect,
+  pendingNavigationFolder,
+}: {
+  folder: Folder;
+  isSelected: boolean;
+  onSelect: (id: string, checked: boolean) => void;
+  onClick: (folder: Folder) => void;
+  onNavigationCheck: (
+    folder: Folder,
+    protection: { hashedPassword?: string; isLocked: boolean } | null | undefined,
+  ) => void;
+  onDelete: (folder: Folder) => void;
+  onMove: (folder: Folder) => void;
+  onRename: (folder: Folder) => void;
+  onProtect: (folder: Folder) => void;
+  pendingNavigationFolder: Folder | null;
+}) {
+  const { data: protection } = useGetFolderProtectionStatus(folder.id);
+
+  React.useEffect(() => {
+    if (pendingNavigationFolder?.id === folder.id) {
+      onNavigationCheck(folder, protection);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingNavigationFolder?.id, folder.id, protection]);
+
+  return (
+    <div
+      className={`relative group rounded-xl border bg-card p-4 hover:shadow-md transition-all ${
+        isSelected ? 'border-primary ring-1 ring-primary' : 'border-border'
+      }`}
+    >
+      <div className="absolute top-3 left-3">
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={(checked) => onSelect(folder.id, !!checked)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+      <div className="absolute top-3 right-3">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 opacity-0 group-hover:opacity-100"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onClick(folder)}>
+              <FolderOpen className="h-4 w-4 mr-2" /> Open
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onRename(folder)}>
+              <Pencil className="h-4 w-4 mr-2" /> Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onMove(folder)}>
+              <Move className="h-4 w-4 mr-2" /> Move
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onProtect(folder)}>
+              <Shield className="h-4 w-4 mr-2" /> Protect Folder
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => onDelete(folder)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" /> Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <div
+        className="flex flex-col items-center gap-2 pt-4 cursor-pointer"
+        onClick={() => onClick(folder)}
+      >
+        <div className="relative">
+          <FolderIcon className="h-12 w-12 text-amber-400" />
+          {protection?.hashedPassword && (
+            <div className="absolute -bottom-1 -right-1 rounded-full bg-background p-0.5">
+              {protection.isLocked ? (
+                <span title="Locked">
+                  <Lock className="h-3.5 w-3.5 text-amber-500" />
+                </span>
+              ) : (
+                <span title="Protected (unlocked)">
+                  <LockOpen className="h-3.5 w-3.5 text-green-500" />
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+        <span className="text-sm font-medium text-center truncate w-full">{folder.name}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── File card (grid view) ─────────────────────────────────────────────────────
 
 function FileCard({
   file,
-  selected,
-  onCheckboxClick,
+  isSelected,
+  onSelect,
   onPreview,
   onDelete,
   onMove,
   onRename,
 }: {
   file: FileMetadata;
-  selected: boolean;
-  onCheckboxClick: (e: React.MouseEvent) => void;
-  onPreview: (f: FileMetadata) => void;
-  onDelete: (f: FileMetadata) => void;
-  onMove: (fileId: string) => void;
-  onRename: (f: FileMetadata) => void;
+  isSelected: boolean;
+  onSelect: (id: string, checked: boolean) => void;
+  onPreview: (file: FileMetadata) => void;
+  onDelete: (file: FileMetadata) => void;
+  onMove: (file: FileMetadata) => void;
+  onRename: (file: FileMetadata) => void;
 }) {
   const { data: isFav } = useIsFavorite(file.id);
   const addFav = useAddFavorite();
   const removeFav = useRemoveFavorite();
 
   return (
-    <div className={`relative flex flex-col rounded-xl border border-border bg-card hover:bg-accent/5 group transition-colors p-3 gap-2 ${selected ? 'bg-primary/10 border-primary' : ''}`}>
-      <div className="absolute top-2 left-2 z-10" onClick={onCheckboxClick}>
+    <div
+      className={`relative group rounded-xl border bg-card p-4 hover:shadow-md transition-all ${
+        isSelected ? 'border-primary ring-1 ring-primary' : 'border-border'
+      }`}
+    >
+      <div className="absolute top-3 left-3">
         <Checkbox
-          checked={selected}
-          onCheckedChange={() => {}}
-          className="cursor-pointer opacity-0 group-hover:opacity-100 data-[state=checked]:opacity-100 transition-opacity"
-          aria-label={`Select ${file.name}`}
+          checked={isSelected}
+          onCheckedChange={(checked) => onSelect(file.id, !!checked)}
+          onClick={(e) => e.stopPropagation()}
         />
       </div>
-      <div className="flex items-start justify-between">
-        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-          <FileTypeIcon name={file.name} className="h-5 w-5" />
-        </div>
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={() => (isFav ? removeFav.mutate(file.id) : addFav.mutate(file.id))}
-          >
-            {isFav
-              ? <StarOff className="h-3 w-3 text-amber-500" />
-              : <Star className="h-3 w-3" />}
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-6 w-6">
-                <MoreVertical className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onPreview(file)}>
-                <Eye className="h-4 w-4 mr-2" /> Preview
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onRename(file)}>
-                <Pencil className="h-4 w-4 mr-2" /> Rename
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onMove(file.id)}>
-                <Move className="h-4 w-4 mr-2" /> Move
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() => onDelete(file)}
-              >
-                <Trash2 className="h-4 w-4 mr-2" /> Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+      <div className="absolute top-3 right-3">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 opacity-0 group-hover:opacity-100"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onPreview(file)}>
+              <Eye className="h-4 w-4 mr-2" /> Preview
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onRename(file)}>
+              <Pencil className="h-4 w-4 mr-2" /> Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onMove(file)}>
+              <Move className="h-4 w-4 mr-2" /> Move
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                if (isFav) removeFav.mutate(file.id);
+                else addFav.mutate(file.id);
+              }}
+            >
+              {isFav ? (
+                <>
+                  <StarOff className="h-4 w-4 mr-2" /> Remove Favorite
+                </>
+              ) : (
+                <>
+                  <Star className="h-4 w-4 mr-2" /> Add to Favorites
+                </>
+              )}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => onDelete(file)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" /> Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-      <div className="min-w-0 cursor-pointer" onClick={() => onPreview(file)}>
-        <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{formatBytes(file.size)}</p>
+
+      <div
+        className="flex flex-col items-center gap-2 pt-4 cursor-pointer"
+        onClick={() => onPreview(file)}
+      >
+        <File className={`h-12 w-12 ${getFileIconColor(file.name)}`} />
+        <span className="text-sm font-medium text-center truncate w-full">{file.name}</span>
+        <span className="text-xs text-muted-foreground">{formatSize(file.size)}</span>
       </div>
     </div>
   );
 }
 
-// ── FolderCard (grid) ─────────────────────────────────────────────────────────
+// ── FilePreviewWrapper ────────────────────────────────────────────────────────
 
-function FolderCard({
-  folder,
-  selected,
-  onCheckboxClick,
-  onOpen,
-  onDelete,
-  onRename,
-  onMove,
+function FilePreviewWrapper({
+  file,
+  onClose,
 }: {
-  folder: FolderType;
-  selected: boolean;
-  onCheckboxClick: (e: React.MouseEvent) => void;
-  onOpen: (id: string) => void;
-  onDelete: (f: FolderType) => void;
-  onRename: (f: FolderType) => void;
-  onMove: (f: FolderType) => void;
+  file: FileMetadata;
+  onClose: () => void;
 }) {
-  return (
-    <div className={`relative flex flex-col rounded-xl border border-border bg-card hover:bg-amber-50/40 dark:hover:bg-amber-900/10 group transition-colors p-3 gap-2 ${selected ? 'bg-amber-50/60 dark:bg-amber-900/15 border-amber-300 dark:border-amber-700' : ''}`}>
-      <div className="absolute top-2 left-2 z-10" onClick={onCheckboxClick}>
-        <Checkbox
-          checked={selected}
-          onCheckedChange={() => {}}
-          className="cursor-pointer opacity-0 group-hover:opacity-100 data-[state=checked]:opacity-100 transition-opacity"
-          aria-label={`Select ${folder.name}`}
-        />
-      </div>
-      <div className="flex items-start justify-between">
-        <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
-          <Folder className="h-5 w-5 text-amber-500" />
-        </div>
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onOpen(folder.id)}>
-            <FolderOpen className="h-3 w-3 text-amber-500" />
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-6 w-6">
-                <MoreVertical className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onOpen(folder.id)}>
-                <FolderOpen className="h-4 w-4 mr-2" /> Open
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onRename(folder)}>
-                <Pencil className="h-4 w-4 mr-2" /> Rename
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onMove(folder)}>
-                <Move className="h-4 w-4 mr-2" /> Move
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() => onDelete(folder)}
-              >
-                <Trash2 className="h-4 w-4 mr-2" /> Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-      <div className="min-w-0 cursor-pointer" onClick={() => onOpen(folder.id)}>
-        <p className="text-sm font-semibold text-foreground truncate">{folder.name}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">Folder</p>
-      </div>
-    </div>
-  );
+  const [fileData, setFileData] = useState<Uint8Array | null>(null);
+  const downloadFile = useDownloadFile();
+
+  React.useEffect(() => {
+    downloadFile.mutateAsync(file.id).then(({ data }) => setFileData(data)).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file.id]);
+
+  return <FilePreview file={file} fileData={fileData} onClose={onClose} />;
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
+// ── Main FileList component ───────────────────────────────────────────────────
 
 export default function FileList({ currentFolderId, onFolderClick }: FileListProps) {
+  const { actor } = useActor();
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+
+  // Per-file dialog state
+  const [previewFile, setPreviewFile] = useState<FileMetadata | null>(null);
+  const [deleteFileTarget, setDeleteFileTarget] = useState<FileMetadata | null>(null);
+  const [moveFileTarget, setMoveFileTarget] = useState<FileMetadata | null>(null);
+  const [renameFileTarget, setRenameFileTarget] = useState<FileMetadata | null>(null);
+
+  // Per-folder dialog state
+  const [deleteFolderTarget, setDeleteFolderTarget] = useState<Folder | null>(null);
+  const [moveFolderTarget, setMoveFolderTarget] = useState<Folder | null>(null);
+  const [renameFolderTarget, setRenameFolderTarget] = useState<Folder | null>(null);
+  const [protectionFolderTarget, setProtectionFolderTarget] = useState<Folder | null>(null);
+  const [passwordPromptFolder, setPasswordPromptFolder] = useState<Folder | null>(null);
+  const [pendingNavigationFolder, setPendingNavigationFolder] = useState<Folder | null>(null);
+
+  // Bulk action dialog state
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+  const [isBulkShareOpen, setIsBulkShareOpen] = useState(false);
+  const [isBulkMoveOpen, setIsBulkMoveOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isBulkFavoriting, setIsBulkFavoriting] = useState(false);
+  const [isBulkDownloading, setIsBulkDownloading] = useState(false);
+
+  // Data hooks
   const { data: allFiles = [], isLoading: filesLoading } = useListFiles();
   const { data: allFolders = [], isLoading: foldersLoading } = useListFolders();
-  const { actor } = useActor();
+  const deleteFileMutation = useDeleteFile();
+  const addFavMutation = useAddFavorite();
+  const moveFilesToFolderMutation = useMoveFilesToFolder();
 
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
-  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
-
-  // Dialog state
-  const [previewFile, setPreviewFile] = useState<FileMetadata | null>(null);
-  const [previewFileData, setPreviewFileData] = useState<Uint8Array | null>(null);
-  const [deleteFile, setDeleteFile] = useState<FileMetadata | null>(null);
-  const [moveFileId, setMoveFileId] = useState<string | null>(null);
-  const [renameFileTarget, setRenameFileTarget] = useState<FileMetadata | null>(null);
-  const [renameFolderTarget, setRenameFolderTarget] = useState<FolderType | null>(null);
-  const [moveFolderTarget, setMoveFolderTarget] = useState<FolderType | null>(null);
-  const [deleteFolderTarget, setDeleteFolderTarget] = useState<FolderType | null>(null);
-  const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
-
-  // Bulk rename state (single-item selection)
-  const [bulkRenameFileOpen, setBulkRenameFileOpen] = useState(false);
-  const [bulkRenameFolderOpen, setBulkRenameFolderOpen] = useState(false);
-  const [bulkRenameTarget, setBulkRenameTarget] = useState<FileMetadata | FolderType | null>(null);
+  // Filter files/folders by current folder
+  const files = allFiles.filter((f) =>
+    currentFolderId ? f.folderId === currentFolderId : !f.folderId,
+  );
+  const folders = allFolders.filter((f) =>
+    currentFolderId ? f.parentId === currentFolderId : !f.parentId,
+  );
 
   // Search / filter / sort
   const { searchQuery, setSearchQuery, searchFiles } = useFileSearch();
@@ -505,187 +605,208 @@ export default function FileList({ currentFolderId, onFolderClick }: FileListPro
   } = useFileFilters();
   const { sortBy, sortOrder, setSortOption, sortFiles } = useFileSorting();
 
-  // Filter by current folder
-  const folderFiles = useMemo(() => {
-    return allFiles.filter((f) =>
-      currentFolderId
-        ? f.folderId === currentFolderId
-        : f.folderId == null || f.folderId === undefined
-    );
-  }, [allFiles, currentFolderId]);
+  const searched = searchFiles(files);
+  const filtered = filterFiles(searched);
+  const sorted = sortFiles(filtered);
 
-  const folderFolders = useMemo(() => {
-    return allFolders.filter((f) =>
-      currentFolderId
-        ? f.parentId === currentFolderId
-        : f.parentId == null || f.parentId === undefined
-    );
-  }, [allFolders, currentFolderId]);
+  // Pagination — no arguments
+  const { currentPage, itemsPerPage, setPage, setItemsPerPage, paginatedData } =
+    usePagination<FileMetadata>();
+  const paginated: FileMetadata[] = paginatedData(sorted);
 
-  // Apply search + filter + sort
-  const processedFiles = useMemo(() => {
-    let result = searchFiles(folderFiles);
-    result = filterFiles(result);
-    result = sortFiles(result);
-    return result;
-  }, [folderFiles, searchFiles, filterFiles, sortFiles]);
+  // Selection helpers
+  const isAllSelected =
+    sorted.length > 0 && sorted.every((f) => selectedItems.has(f.id));
+  const isSomeSelected = selectedItems.size > 0 && !isAllSelected;
+  const selectedCount = selectedItems.size;
+  const isMultiSelected = selectedCount >= 2;
 
-  // Pagination
-  const { currentPage, itemsPerPage, setPage, setItemsPerPage, paginatedData } = usePagination<FileMetadata>();
-  const paginatedFiles = paginatedData(processedFiles);
-
-  // ── Selection helpers ──────────────────────────────────────────────────────
-
-  const toggleSelect = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSelectedFiles((prev) => {
+  const toggleSelect = (id: string, checked: boolean) => {
+    setSelectedItems((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (checked) next.add(id);
+      else next.delete(id);
       return next;
     });
   };
 
-  const allIds = [...folderFolders.map((f) => f.id), ...processedFiles.map((f) => f.id)];
-  const allSelected = allIds.length > 0 && allIds.every((id) => selectedFiles.has(id));
+  const selectAll = () => setSelectedItems(new Set(sorted.map((f) => f.id)));
+  const deselectAll = () => setSelectedItems(new Set());
 
-  const handleSelectAll = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (allSelected) {
-      setSelectedFiles(new Set());
+  // ── Folder navigation with password check ────────────────────────────────
+
+  const handleFolderClick = (folder: Folder) => {
+    if (isFolderLockedOut(folder.id)) {
+      toast.error('This folder is locked due to too many failed password attempts.');
+      return;
+    }
+    setPendingNavigationFolder(folder);
+  };
+
+  const handleNavigationCheck = (
+    folder: Folder,
+    protection: { hashedPassword?: string; isLocked: boolean } | null | undefined,
+  ) => {
+    setPendingNavigationFolder(null);
+    if (protection?.hashedPassword && protection.isLocked) {
+      setPasswordPromptFolder(folder);
     } else {
-      setSelectedFiles(new Set(allIds));
+      onFolderClick?.(folder.id);
     }
   };
 
-  // ── Preview ────────────────────────────────────────────────────────────────
+  // ── Bulk action handlers ──────────────────────────────────────────────────
 
-  const handlePreview = async (file: FileMetadata) => {
-    setPreviewFile(file);
-    setPreviewFileData(null);
-    if (actor) {
+  const handleDownloadAll = useCallback(async () => {
+    if (!actor || selectedItems.size === 0) return;
+    setIsBulkDownloading(true);
+    toast.info(`Starting download of ${selectedItems.size} file${selectedItems.size !== 1 ? 's' : ''}...`);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const fileId of selectedItems) {
+      const fileMeta = files.find((f) => f.id === fileId);
+      if (!fileMeta) continue;
+
       try {
+        const chunkSize = 1024 * 1024;
+        const totalChunks = Math.max(1, Math.ceil(Number(fileMeta.size) / chunkSize));
         const chunks: Uint8Array[] = [];
-        let chunkIndex = 0;
-        while (true) {
-          const chunk = await actor.downloadFileChunk(file.id, BigInt(chunkIndex));
-          if (!chunk) break;
-          chunks.push(new Uint8Array(chunk));
-          chunkIndex++;
-          if (chunkIndex >= 100) break;
+
+        for (let i = 0; i < totalChunks; i++) {
+          const chunk = await actor.downloadFileChunk(fileId, BigInt(i));
+          if (chunk) {
+            chunks.push(new Uint8Array(chunk));
+          }
         }
-        if (chunks.length > 0) {
-          const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
-          const merged = new Uint8Array(totalLength);
-          let offset = 0;
-          for (const c of chunks) { merged.set(c, offset); offset += c.length; }
-          setPreviewFileData(merged);
+
+        if (chunks.length === 0) {
+          failCount++;
+          continue;
         }
-      } catch { /* ignore */ }
+
+        // Cast to ArrayBuffer[] to satisfy Blob constructor typing
+        const blobParts = chunks.map((c) => c.buffer as ArrayBuffer);
+        const blob = new Blob(blobParts);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileMeta.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        successCount++;
+      } catch {
+        failCount++;
+      }
     }
-  };
 
-  // ── Delete file handler ────────────────────────────────────────────────────
+    setIsBulkDownloading(false);
 
-  const deleteFileMutation = useDeleteFile();
-
-  const handleDeleteConfirm = async (customRetentionPeriod: bigint | null) => {
-    if (!deleteFile) return;
-    try {
-      await deleteFileMutation.mutateAsync({
-        fileId: deleteFile.id,
-        originalPath: '/',
-        customRetentionPeriod,
-      });
-      toast.success('File moved to Trash');
-      setDeleteFile(null);
-      setSelectedFiles((prev) => {
-        const next = new Set(prev);
-        next.delete(deleteFile.id);
-        return next;
-      });
-    } catch {
-      toast.error('Failed to delete file');
+    if (failCount === 0) {
+      toast.success(`Downloaded ${successCount} file${successCount !== 1 ? 's' : ''} successfully`);
+    } else if (successCount === 0) {
+      toast.error(`Failed to download all ${failCount} file${failCount !== 1 ? 's' : ''}`);
+    } else {
+      toast.warning(`Downloaded ${successCount}, ${failCount} failed`);
     }
-  };
+  }, [actor, selectedItems, files]);
 
-  // ── Delete folder handler ──────────────────────────────────────────────────
+  const handleFavoritesAll = useCallback(async () => {
+    if (selectedItems.size === 0) return;
+    setIsBulkFavoriting(true);
 
-  const deleteFolderMutation = useDeleteFolderToTrash();
+    const results = await Promise.allSettled(
+      Array.from(selectedItems).map((fileId) => addFavMutation.mutateAsync(fileId))
+    );
 
-  const handleDeleteFolderConfirm = async (folderId: string, retentionPeriodNs: bigint) => {
-    const days = retentionPeriodNs / BigInt(24 * 60 * 60 * 1_000_000_000);
-    await deleteFolderMutation.mutateAsync({ folderId, retentionDays: days });
-    setSelectedFiles((prev) => {
-      const next = new Set(prev);
-      next.delete(folderId);
-      return next;
-    });
-  };
+    const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.filter((r) => r.status === 'rejected').length;
 
-  // ── Bulk download ──────────────────────────────────────────────────────────
+    setIsBulkFavoriting(false);
 
-  const handleBulkDownload = async () => {
-    if (!actor) return;
-    const fileIds = [...selectedFiles].filter((id) => processedFiles.some((f) => f.id === id));
-    for (const fileId of fileIds) {
-      const file = processedFiles.find((f) => f.id === fileId);
-      if (!file) continue;
-      try {
-        const chunks: Uint8Array[] = [];
-        let chunkIndex = 0;
-        while (true) {
-          const chunk = await actor.downloadFileChunk(fileId, BigInt(chunkIndex));
-          if (!chunk) break;
-          chunks.push(new Uint8Array(chunk));
-          chunkIndex++;
-          if (chunkIndex >= 100) break;
-        }
-        if (chunks.length > 0) {
-          const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
-          const merged = new Uint8Array(totalLength);
-          let offset = 0;
-          for (const c of chunks) { merged.set(c, offset); offset += c.length; }
-          const blob = new Blob([merged]);
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = file.name;
-          a.click();
-          URL.revokeObjectURL(url);
-        }
-      } catch { /* ignore individual failures */ }
+    if (failed === 0) {
+      toast.success(`Added ${succeeded} file${succeeded !== 1 ? 's' : ''} to Favorites`);
+    } else if (succeeded === 0) {
+      toast.error('Failed to add files to Favorites');
+    } else {
+      toast.warning(`Added ${succeeded} to Favorites, ${failed} failed`);
     }
-    toast.success(`Downloaded ${fileIds.length} file(s)`);
-  };
 
-  // ── Bulk rename ────────────────────────────────────────────────────────────
+    deselectAll();
+  }, [selectedItems, addFavMutation]);
 
-  const handleBulkRename = () => {
-    if (selectedFiles.size !== 1) {
-      toast.error('Please select exactly one item to rename.');
-      return;
-    }
-    const [selectedId] = [...selectedFiles];
-    const folder = folderFolders.find((f) => f.id === selectedId);
-    if (folder) {
-      setBulkRenameTarget(folder);
-      setBulkRenameFolderOpen(true);
-      return;
-    }
-    const file = processedFiles.find((f) => f.id === selectedId);
-    if (file) {
-      setBulkRenameTarget(file);
-      setBulkRenameFileOpen(true);
-    }
-  };
+  const handleSharedAll = useCallback(() => {
+    if (selectedItems.size === 0) return;
+    setIsBulkShareOpen(true);
+  }, [selectedItems]);
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const handleMoveAll = useCallback(() => {
+    if (selectedItems.size === 0) return;
+    setIsBulkMoveOpen(true);
+  }, [selectedItems]);
+
+  const handleDeleteAll = useCallback(() => {
+    if (selectedItems.size === 0) return;
+    setIsBulkDeleteOpen(true);
+  }, [selectedItems]);
+
+  const handleBulkDeleteConfirm = useCallback(
+    async (retentionDays: number) => {
+      setIsBulkDeleting(true);
+      const retentionNs =
+        BigInt(retentionDays) * BigInt(24 * 60 * 60) * BigInt(1_000_000_000);
+
+      const results = await Promise.allSettled(
+        Array.from(selectedItems).map((fileId) => {
+          const fileMeta = files.find((f) => f.id === fileId);
+          return deleteFileMutation.mutateAsync({
+            fileId,
+            originalPath: fileMeta?.folderId ? `/folder/${fileMeta.folderId}` : '/',
+            customRetentionPeriod: retentionNs,
+          });
+        })
+      );
+
+      const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.filter((r) => r.status === 'rejected').length;
+
+      setIsBulkDeleting(false);
+      setIsBulkDeleteOpen(false);
+
+      if (failed === 0) {
+        toast.success(`Moved ${succeeded} file${succeeded !== 1 ? 's' : ''} to Trash`);
+      } else if (succeeded === 0) {
+        toast.error('Failed to delete files');
+      } else {
+        toast.warning(`Deleted ${succeeded}, ${failed} failed`);
+      }
+
+      deselectAll();
+    },
+    [selectedItems, files, deleteFileMutation]
+  );
 
   const isLoading = filesLoading || foldersLoading;
 
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        {[...Array(5)].map((_, i) => (
+          <Skeleton key={i} className="h-12 w-full rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+
+  const hasContent = sorted.length > 0 || folders.length > 0;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Toolbar */}
       <FileToolbar
         searchQuery={searchQuery}
@@ -704,270 +825,400 @@ export default function FileList({ currentFolderId, onFolderClick }: FileListPro
         onViewModeChange={setViewMode}
       />
 
-      {/* Bulk action bar */}
-      {selectedFiles.size > 0 && (
+      {/* Selection bulk action bar */}
+      {selectedCount > 0 && (
         <div className="flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/20 rounded-lg flex-wrap">
-          <span className="text-sm font-medium text-primary mr-2">
-            {selectedFiles.size} selected
+          <span className="text-sm font-medium text-primary">
+            {selectedCount} selected
           </span>
-          <Button variant="outline" size="sm" onClick={handleBulkDownload} className="h-8">
-            <Download className="mr-1.5 h-3.5 w-3.5" />
-            Download
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleBulkRename}
-            disabled={selectedFiles.size !== 1}
-            className="h-8"
-            title={selectedFiles.size !== 1 ? 'Select exactly one item to rename' : 'Rename selected item'}
-          >
-            <Pencil className="mr-1.5 h-3.5 w-3.5" />
-            Rename
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setBulkMoveOpen(true)}
-            className="h-8"
-          >
-            <Move className="mr-1.5 h-3.5 w-3.5" />
-            Move
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => toast.info('Select individual files to delete them.')}
-            className="h-8 text-destructive hover:text-destructive"
-          >
-            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-            Delete
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSelectedFiles(new Set())}
-            className="h-8 ml-auto"
-          >
-            <X className="mr-1 h-3.5 w-3.5" />
-            Clear
-          </Button>
+
+          <div className="flex items-center gap-1 ml-2 flex-wrap">
+            {/* Select All / Deselect All toggle */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={isAllSelected ? deselectAll : selectAll}
+                    className="h-8 px-2"
+                  >
+                    {isAllSelected ? (
+                      <CheckSquare className="h-4 w-4" />
+                    ) : (
+                      <Square className="h-4 w-4" />
+                    )}
+                    <span className="ml-1 text-xs">
+                      {isAllSelected ? 'Deselect All' : 'Select All'}
+                    </span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {isAllSelected ? 'Deselect All' : 'Select All'}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            {/* Clear selection */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={deselectAll}
+                    className="h-8 px-2"
+                  >
+                    <X className="h-4 w-4" />
+                    <span className="ml-1 text-xs">Clear</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Deselect All</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            {/* ── Bulk actions: only visible when 2+ files selected ── */}
+            {isMultiSelected && (
+              <>
+                <div className="w-px h-6 bg-border mx-1" />
+
+                {/* Download All */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleDownloadAll}
+                        disabled={isBulkDownloading}
+                        className="h-8 px-2"
+                      >
+                        {isBulkDownloading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4" />
+                        )}
+                        <span className="ml-1 text-xs hidden sm:inline">Download All</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Download All Selected</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                {/* Favorites All */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleFavoritesAll}
+                        disabled={isBulkFavoriting}
+                        className="h-8 px-2"
+                      >
+                        {isBulkFavoriting ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Heart className="h-4 w-4" />
+                        )}
+                        <span className="ml-1 text-xs hidden sm:inline">Favorites All</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Add All to Favorites</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                {/* Shared All */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleSharedAll}
+                        className="h-8 px-2"
+                      >
+                        <Share2 className="h-4 w-4" />
+                        <span className="ml-1 text-xs hidden sm:inline">Share All</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Share All Selected</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                {/* Move All */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleMoveAll}
+                        className="h-8 px-2"
+                      >
+                        <FolderInput className="h-4 w-4" />
+                        <span className="ml-1 text-xs hidden sm:inline">Move All</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Move All to Folder</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                {/* Delete All */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleDeleteAll}
+                        className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="ml-1 text-xs hidden sm:inline">Delete All</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete All Selected</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </>
+            )}
+          </div>
         </div>
       )}
 
       {/* Content */}
-      {isLoading ? (
-        <div className="space-y-2">
-          {[...Array(5)].map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full rounded-lg" />
-          ))}
-        </div>
-      ) : folderFolders.length === 0 && processedFiles.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <Folder className="h-12 w-12 mb-3 opacity-30" />
-          <p className="text-sm">No files or folders here yet.</p>
+      {!hasContent ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <FolderIcon className="h-16 w-16 text-muted-foreground/30 mb-4" />
+          <p className="text-lg font-medium text-muted-foreground">No files or folders</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Upload files or create a folder to get started
+          </p>
         </div>
       ) : viewMode === 'list' ? (
-        /* ── List view ── */
-        <div className="rounded-lg border border-border overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-muted/50 sticky top-0 z-10">
-              <tr>
-                <th className="py-3 px-3 w-10">
-                  <div onClick={handleSelectAll} className="flex items-center justify-center cursor-pointer">
+        <>
+          <div className="rounded-lg border border-border overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border bg-muted/40">
+                  <th className="py-2 pl-4 pr-2 w-10">
                     <Checkbox
-                      checked={allSelected}
-                      onCheckedChange={() => {}}
-                      aria-label="Select all"
+                      checked={isAllSelected}
+                      ref={(el) => {
+                        if (el) {
+                          const input = el as unknown as HTMLInputElement;
+                          if (input) input.indeterminate = isSomeSelected;
+                        }
+                      }}
+                      onCheckedChange={(checked) => {
+                        if (checked) selectAll();
+                        else deselectAll();
+                      }}
                     />
-                  </div>
-                </th>
-                <th className="py-3 px-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name</th>
-                <th className="py-3 px-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Date</th>
-                <th className="py-3 px-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Type</th>
-                <th className="py-3 px-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Size</th>
-                <th className="py-3 px-3 w-28" />
-              </tr>
-            </thead>
-            <tbody>
-              {folderFolders.map((folder) => (
-                <FolderTableRow
-                  key={folder.id}
-                  folder={folder}
-                  selected={selectedFiles.has(folder.id)}
-                  onCheckboxClick={(e) => toggleSelect(folder.id, e)}
-                  onOpen={(id) => onFolderClick?.(id)}
-                  onRename={(f) => setRenameFolderTarget(f)}
-                  onMove={(f) => setMoveFolderTarget(f)}
-                  onDelete={(f) => setDeleteFolderTarget(f)}
-                />
-              ))}
-              {paginatedFiles.map((file: FileMetadata) => (
-                <FileTableRow
-                  key={file.id}
-                  file={file}
-                  selected={selectedFiles.has(file.id)}
-                  onCheckboxClick={(e) => toggleSelect(file.id, e)}
-                  onPreview={handlePreview}
-                  onDelete={(f) => setDeleteFile(f)}
-                  onMove={(id) => setMoveFileId(id)}
-                  onRename={(f) => setRenameFileTarget(f)}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </th>
+                  <th className="py-2 px-2 text-left text-xs font-medium text-muted-foreground">
+                    Name
+                  </th>
+                  <th className="py-2 px-2 text-left text-xs font-medium text-muted-foreground hidden md:table-cell">
+                    Size
+                  </th>
+                  <th className="py-2 px-2 text-left text-xs font-medium text-muted-foreground hidden lg:table-cell">
+                    Date
+                  </th>
+                  <th className="py-2 px-2 pr-4 w-10" />
+                </tr>
+              </thead>
+              <tbody>
+                {folders.map((folder) => (
+                  <FolderRowWithProtectionCheck
+                    key={folder.id}
+                    folder={folder}
+                    isSelected={selectedItems.has(folder.id)}
+                    onSelect={toggleSelect}
+                    onClick={handleFolderClick}
+                    onNavigationCheck={handleNavigationCheck}
+                    onDelete={setDeleteFolderTarget}
+                    onMove={setMoveFolderTarget}
+                    onRename={setRenameFolderTarget}
+                    onProtect={setProtectionFolderTarget}
+                    pendingNavigationFolder={pendingNavigationFolder}
+                  />
+                ))}
+                {paginated.map((file) => (
+                  <FileRow
+                    key={file.id}
+                    file={file}
+                    isSelected={selectedItems.has(file.id)}
+                    onSelect={toggleSelect}
+                    onPreview={setPreviewFile}
+                    onDelete={setDeleteFileTarget}
+                    onMove={setMoveFileTarget}
+                    onRename={setRenameFileTarget}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {sorted.length > 0 && (
+            <PaginationControls
+              currentPage={currentPage}
+              totalItems={sorted.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setPage}
+              onItemsPerPageChange={setItemsPerPage}
+            />
+          )}
+        </>
       ) : (
-        /* ── Grid view ── */
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-          {folderFolders.map((folder) => (
-            <FolderCard
-              key={folder.id}
-              folder={folder}
-              selected={selectedFiles.has(folder.id)}
-              onCheckboxClick={(e) => toggleSelect(folder.id, e)}
-              onOpen={(id) => onFolderClick?.(id)}
-              onRename={(f) => setRenameFolderTarget(f)}
-              onMove={(f) => setMoveFolderTarget(f)}
-              onDelete={(f) => setDeleteFolderTarget(f)}
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {folders.map((folder) => (
+              <FolderCardWithProtectionCheck
+                key={folder.id}
+                folder={folder}
+                isSelected={selectedItems.has(folder.id)}
+                onSelect={toggleSelect}
+                onClick={handleFolderClick}
+                onNavigationCheck={handleNavigationCheck}
+                onDelete={setDeleteFolderTarget}
+                onMove={setMoveFolderTarget}
+                onRename={setRenameFolderTarget}
+                onProtect={setProtectionFolderTarget}
+                pendingNavigationFolder={pendingNavigationFolder}
+              />
+            ))}
+            {paginated.map((file) => (
+              <FileCard
+                key={file.id}
+                file={file}
+                isSelected={selectedItems.has(file.id)}
+                onSelect={toggleSelect}
+                onPreview={setPreviewFile}
+                onDelete={setDeleteFileTarget}
+                onMove={setMoveFileTarget}
+                onRename={setRenameFileTarget}
+              />
+            ))}
+          </div>
+
+          {sorted.length > 0 && (
+            <PaginationControls
+              currentPage={currentPage}
+              totalItems={sorted.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setPage}
+              onItemsPerPageChange={setItemsPerPage}
             />
-          ))}
-          {paginatedFiles.map((file: FileMetadata) => (
-            <FileCard
-              key={file.id}
-              file={file}
-              selected={selectedFiles.has(file.id)}
-              onCheckboxClick={(e) => toggleSelect(file.id, e)}
-              onPreview={handlePreview}
-              onDelete={(f) => setDeleteFile(f)}
-              onMove={(id) => setMoveFileId(id)}
-              onRename={(f) => setRenameFileTarget(f)}
-            />
-          ))}
-        </div>
+          )}
+        </>
       )}
 
-      {/* Pagination */}
-      {processedFiles.length > itemsPerPage && (
-        <PaginationControls
-          currentPage={currentPage}
-          totalItems={processedFiles.length}
-          itemsPerPage={itemsPerPage}
-          onPageChange={setPage}
-          onItemsPerPageChange={setItemsPerPage}
-        />
-      )}
-
-      {/* ── Dialogs ── */}
-
-      {/* File Preview */}
+      {/* ── Per-file dialogs ── */}
       {previewFile && (
-        <FilePreview
-          file={previewFile}
-          fileData={previewFileData}
-          onClose={() => { setPreviewFile(null); setPreviewFileData(null); }}
+        <FilePreviewWrapper file={previewFile} onClose={() => setPreviewFile(null)} />
+      )}
+
+      <DeleteFileDialog
+        open={!!deleteFileTarget}
+        onOpenChange={(open) => { if (!open) setDeleteFileTarget(null); }}
+        file={deleteFileTarget}
+        onConfirm={async (customRetentionPeriod) => {
+          if (!deleteFileTarget) return;
+          try {
+            await deleteFileMutation.mutateAsync({
+              fileId: deleteFileTarget.id,
+              originalPath: deleteFileTarget.folderId
+                ? `/folder/${deleteFileTarget.folderId}`
+                : '/',
+              customRetentionPeriod,
+            });
+            toast.success(`"${deleteFileTarget.name}" moved to Trash`);
+          } catch {
+            toast.error('Failed to delete file');
+          } finally {
+            setDeleteFileTarget(null);
+          }
+        }}
+      />
+
+      <MoveToFolderDialog
+        open={!!moveFileTarget}
+        onOpenChange={(open) => { if (!open) setMoveFileTarget(null); }}
+        fileIds={moveFileTarget ? [moveFileTarget.id] : []}
+      />
+
+      <RenameFileDialog
+        open={!!renameFileTarget}
+        onOpenChange={(open) => { if (!open) setRenameFileTarget(null); }}
+        fileId={renameFileTarget?.id ?? ''}
+        currentName={renameFileTarget?.name ?? ''}
+      />
+
+      {/* ── Per-folder dialogs ── */}
+      <DeleteFolderDialog
+        open={!!deleteFolderTarget}
+        onOpenChange={(open) => { if (!open) setDeleteFolderTarget(null); }}
+        folder={deleteFolderTarget}
+      />
+
+      <MoveFolderDialog
+        open={!!moveFolderTarget}
+        onOpenChange={(open) => { if (!open) setMoveFolderTarget(null); }}
+        folder={moveFolderTarget}
+      />
+
+      <RenameFolderDialog
+        open={!!renameFolderTarget}
+        onOpenChange={(open) => { if (!open) setRenameFolderTarget(null); }}
+        folder={renameFolderTarget}
+      />
+
+      {protectionFolderTarget && (
+        <FolderProtectionModal
+          open={!!protectionFolderTarget}
+          onOpenChange={(open) => { if (!open) setProtectionFolderTarget(null); }}
+          folder={protectionFolderTarget}
+          protection={undefined}
         />
       )}
 
-      {/* Delete File */}
-      {deleteFile && (
-        <DeleteFileDialog
-          open={!!deleteFile}
-          onOpenChange={(open) => { if (!open) setDeleteFile(null); }}
-          file={deleteFile}
-          onConfirm={handleDeleteConfirm}
-        />
-      )}
-
-      {/* Move File */}
-      {moveFileId && (
-        <MoveToFolderDialog
-          open={!!moveFileId}
-          onOpenChange={(open) => { if (!open) setMoveFileId(null); }}
-          fileIds={[moveFileId]}
-        />
-      )}
-
-      {/* Rename File (row action) */}
-      {renameFileTarget && (
-        <RenameFileDialog
-          open={!!renameFileTarget}
-          onOpenChange={(open) => { if (!open) setRenameFileTarget(null); }}
-          fileId={renameFileTarget.id}
-          currentName={renameFileTarget.name}
-          onRenamed={() => setRenameFileTarget(null)}
-        />
-      )}
-
-      {/* Rename Folder (row action) */}
-      {renameFolderTarget && (
-        <RenameFolderDialog
-          open={!!renameFolderTarget}
-          onOpenChange={(open) => { if (!open) setRenameFolderTarget(null); }}
-          folder={renameFolderTarget}
-        />
-      )}
-
-      {/* Move Folder */}
-      {moveFolderTarget && (
-        <MoveFolderDialog
-          open={!!moveFolderTarget}
-          onOpenChange={(open) => { if (!open) setMoveFolderTarget(null); }}
-          folder={moveFolderTarget}
-        />
-      )}
-
-      {/* Delete Folder */}
-      {deleteFolderTarget && (
-        <DeleteFolderToTrashDialog
-          open={!!deleteFolderTarget}
-          onOpenChange={(open) => { if (!open) setDeleteFolderTarget(null); }}
-          folder={deleteFolderTarget}
-          onConfirm={handleDeleteFolderConfirm}
-        />
-      )}
-
-      {/* Bulk Move */}
-      {bulkMoveOpen && (
-        <MoveToFolderDialog
-          open={bulkMoveOpen}
-          onOpenChange={(open) => {
-            setBulkMoveOpen(open);
-            if (!open) setSelectedFiles(new Set());
-          }}
-          fileIds={[...selectedFiles].filter((id) => processedFiles.some((f) => f.id === id))}
-        />
-      )}
-
-      {/* Bulk Rename — File */}
-      {bulkRenameFileOpen && bulkRenameTarget && 'uploadedAt' in bulkRenameTarget && (
-        <RenameFileDialog
-          open={bulkRenameFileOpen}
-          onOpenChange={(open) => {
-            setBulkRenameFileOpen(open);
-            if (!open) setBulkRenameTarget(null);
-          }}
-          fileId={(bulkRenameTarget as FileMetadata).id}
-          currentName={(bulkRenameTarget as FileMetadata).name}
-          onRenamed={() => {
-            setBulkRenameFileOpen(false);
-            setBulkRenameTarget(null);
-            setSelectedFiles(new Set());
+      {passwordPromptFolder && (
+        <FolderPasswordPrompt
+          open={!!passwordPromptFolder}
+          onOpenChange={(open) => { if (!open) setPasswordPromptFolder(null); }}
+          folderId={passwordPromptFolder.id}
+          folderName={passwordPromptFolder.name}
+          onSuccess={() => {
+            const folder = passwordPromptFolder;
+            setPasswordPromptFolder(null);
+            onFolderClick?.(folder.id);
           }}
         />
       )}
 
-      {/* Bulk Rename — Folder */}
-      {bulkRenameFolderOpen && bulkRenameTarget && 'createdAt' in bulkRenameTarget && (
-        <RenameFolderDialog
-          open={bulkRenameFolderOpen}
-          onOpenChange={(open) => {
-            setBulkRenameFolderOpen(open);
-            if (!open) setBulkRenameTarget(null);
-          }}
-          folder={bulkRenameTarget as FolderType}
-        />
-      )}
+      {/* ── Bulk action dialogs ── */}
+      <BulkDeleteDialog
+        isOpen={isBulkDeleteOpen}
+        onClose={() => setIsBulkDeleteOpen(false)}
+        onConfirm={handleBulkDeleteConfirm}
+        fileCount={selectedCount}
+        isLoading={isBulkDeleting}
+      />
+
+      <BulkShareDialog
+        isOpen={isBulkShareOpen}
+        onClose={() => setIsBulkShareOpen(false)}
+        selectedFileIds={Array.from(selectedItems)}
+        onSuccess={deselectAll}
+      />
+
+      <MoveToFolderDialog
+        open={isBulkMoveOpen}
+        onOpenChange={(open) => { if (!open) setIsBulkMoveOpen(false); }}
+        fileIds={Array.from(selectedItems)}
+      />
     </div>
   );
 }

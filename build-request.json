@@ -1,58 +1,135 @@
 {
   "kind": "build_request",
-  "title": "Add Rename option to bulk action bar and three-dot menu in My Files",
-  "projectName": "CloudVault",
+  "title": "Add 5 Bulk Action Icons to Selection Bar (Download All, Favorites All, Shared All, Move All, Delete All)",
+  "projectName": "Cloud File Manager",
   "priority": "normal",
   "requirements": [
     {
       "id": "REQ-1",
-      "text": "In the My Files section, add a 'Rename' action button to the bulk selection action bar, positioned immediately before the existing 'Move' button. The Rename action in bulk mode should open a rename dialog (or trigger rename for the selected item if only one is selected). Include an appropriate rename icon on the button.",
+      "text": "Add five new bulk action icon buttons to the Selection Bulk Action bar in FileList.tsx, placed immediately after the 'Deselect All' button. The five buttons are: (1) Download All, (2) Favorites All, (3) Shared All, (4) Move All, (5) Delete All. All five buttons must be hidden when only 1 file is selected and must only appear when 2 or more files are selected.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-5"
+          "msg-bulk-1"
         ],
         "quotes": [
-          "Selection - Bulk action bar (currently : Download, Move, Delete,) - add a \"Rename\" right before the \"Move\""
+          "Add a new five features icons to the 'Selection Bulck action' bar right after the 'Deselect ALL' icon.",
+          "Five of these features only work or show up when the user selects more than one file."
         ]
       },
       "acceptanceCriteria": [
-        "The bulk action bar displays buttons in the order: Download, Rename, Move, Delete.",
-        "The 'Rename' button has a rename/edit icon.",
-        "Clicking 'Rename' in the bulk action bar opens the rename dialog when one item is selected.",
-        "The Rename button is visible whenever items are selected and the bulk action bar is shown."
+        "When exactly 1 file is selected, the five new bulk action buttons are not visible.",
+        "When 2 or more files are selected, all five new bulk action buttons appear after the Deselect All button in the bulk action bar.",
+        "Each button has a distinct, recognizable icon and a tooltip or label: Download All, Favorites All, Shared All, Move All, Delete All.",
+        "The existing per-file three-dot menu items (Preview, Rename, Move, Add to Favorites, Delete) remain unchanged."
       ]
     },
     {
       "id": "REQ-2",
-      "text": "In the My Files section, add a 'Rename' menu item to the vertical three-dot (ellipsis) context menu for each file/folder row, positioned immediately before the existing 'Move' item. Clicking it should open the rename dialog for that file or folder. Include an appropriate rename icon.",
+      "text": "Implement the 'Download All' bulk action: when the user clicks Download All with 2+ files selected, trigger a download of each selected file to the user's device using the existing file retrieval mechanism (similar to the single-file download in FilePreview.tsx).",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-5"
+          "msg-bulk-1"
         ],
         "quotes": [
-          "Vertical three dots (currently: Preview, Move, Delete) - add a \" \"Rename\" right before the \"Move\""
+          "Download ALL - downloading to any devices"
         ]
       },
       "acceptanceCriteria": [
-        "The three-dot context menu displays items in the order: Preview, Rename, Move, Delete.",
-        "The 'Rename' menu item has a rename/edit icon.",
-        "Clicking 'Rename' opens a rename dialog pre-filled with the current file or folder name.",
-        "After confirming the rename, the file or folder name updates in the list and a success toast is shown.",
-        "The rename dialog includes validation (e.g., non-empty name) and shows an error toast on failure."
+        "Clicking Download All initiates a download for every selected file.",
+        "Each file is downloaded individually to the user's device.",
+        "A toast notification confirms the download action was triggered."
+      ]
+    },
+    {
+      "id": "REQ-3",
+      "text": "Implement the 'Favorites All' bulk action: when the user clicks Favorites All with 2+ files selected, add all selected files to the Favorites section using the existing favorites mutation hook (useAddToFavorites or equivalent from useQueries.ts).",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-bulk-1"
+        ],
+        "quotes": [
+          "Favorites ALL - moving to Favorites section"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Clicking Favorites All adds all selected files to the Favorites section.",
+        "A success or error toast notification is shown after the operation.",
+        "The Favorites section reflects the newly added files."
+      ]
+    },
+    {
+      "id": "REQ-4",
+      "text": "Implement the 'Shared All' bulk action: when the user clicks Shared All with 2+ files selected, move or mark all selected files as shared using the existing share mutation hooks from useQueries.ts. If sharing requires a recipient or permission selection, open a minimal dialog to collect the required input.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-bulk-1"
+        ],
+        "quotes": [
+          "Shared ALL - moving to Shared section"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Clicking Shared All triggers the share flow for all selected files.",
+        "If a dialog is needed for share details, it opens and collects input before proceeding.",
+        "A success or error toast notification is shown after the operation.",
+        "Shared files appear in the Shared section."
+      ]
+    },
+    {
+      "id": "REQ-5",
+      "text": "Implement the 'Move All' bulk action: when the user clicks Move All with 2+ files selected, open the existing MoveToFolderDialog (or equivalent) configured to move all selected files to a chosen destination folder using the useMoveFilesToFolder mutation.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-bulk-1"
+        ],
+        "quotes": [
+          "Move All - moving to folder"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Clicking Move All opens the folder selection dialog.",
+        "After confirming a destination, all selected files are moved to that folder.",
+        "A success or error toast notification is shown after the operation.",
+        "The file list updates to reflect the moved files."
+      ]
+    },
+    {
+      "id": "REQ-6",
+      "text": "Implement the 'Delete All' bulk action: when the user clicks Delete All with 2+ files selected, open a confirmation dialog (reusing or extending DeleteFileDialog/DeleteConfirmationDialog) and upon confirmation, delete all selected files at once using the existing delete mutation hooks.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-bulk-1"
+        ],
+        "quotes": [
+          "Delete All - deleting all filed at once"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Clicking Delete All opens a confirmation dialog listing the number of files to be deleted.",
+        "Upon confirmation, all selected files are deleted.",
+        "A success or error toast notification is shown after the operation.",
+        "The file list updates to remove the deleted files.",
+        "The selection is cleared after deletion."
       ]
     }
   ],
   "constraints": [
-    "Do not change the order of existing actions (Download, Move, Delete in bulk bar; Preview, Move, Delete in three-dot menu) — only insert Rename before Move.",
-    "Reuse existing rename dialog components (RenameFileDialog / RenameFolderDialog) where they already exist.",
+    "Do not remove or modify the existing per-file three-dot menu items: Preview, Rename, Move, Add to Favorites, Delete.",
+    "The five new bulk action buttons must only be visible when 2 or more files are selected.",
+    "Reuse existing mutation hooks from useQueries.ts for all backend operations.",
     "Do not modify any files under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui."
   ],
   "nonGoals": [
-    "Adding Rename to any section other than My Files (e.g., Trash, Recent, Shared).",
-    "Implementing bulk rename for multiple selected items simultaneously.",
-    "Backend changes — rename mutations already exist."
+    "Adding new backend endpoints — all operations must use existing backend mutations.",
+    "Modifying the per-file three-dot context menu.",
+    "Changing the bulk action bar layout for single-file selections.",
+    "Introducing any new authentication or authorization logic."
   ],
   "imageRequirements": {
     "required": [],
