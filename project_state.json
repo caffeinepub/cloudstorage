@@ -1,30 +1,18 @@
 {
   "schemaVersion": "1.0.0",
   "projectStateVersion": 3,
-  "summary": "Secure Access Control & Approval-Based Registration System for CloudStorage. Features: Internet Identity authentication, auto Super Admin promotion for first user, Pending Approval flow for subsequent users, Admin Dashboard with Role & Access Management and User Management tabs, RBAC permission matrix, detailed audit logs, configurable storage quotas. Currently attempting simplified Step 1: User Registration with Pending Approval (Internet Identity login, first user becomes Super Admin, pending status for others, basic admin approval panel).",
+  "summary": "App with login flow and admin approval panel. Admin is identified by a hardcoded Internet Identity principal ID (mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae). The app is deployed on the Internet Computer (ICP) network.",
   "architectural_notes": [
-    "Build is failing repeatedly — breaking into Step 1 first: login + pending approval + basic admin panel, then adding RBAC/audit/quota in later steps",
-    "Authentication via Internet Identity (passkey, Google, Apple, Microsoft)",
-    "First registered user auto-promoted to Super Admin (one-time only); all others start as Pending"
+    "Admin is identified by a hardcoded Internet Identity principal ID: mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae. Admin bypasses the approval flow and goes directly to the admin panel."
   ],
-  "known_issues": [
-    "Repeated AI build failures when attempting full-scope build — simplifying to incremental steps"
-  ],
-  "isFixRequest": false,
+  "known_issues": [],
+  "isFixRequest": true,
   "existing_features": [
     {
-      "id": "feature-after-a-user-logs-in-via-internet-identity-check-their-registration-status-if-their-status-is-pending-display-a-full-screen-waiting-screen-informing-them-that-their-account-is-awaiting-admin-approval-if-their-status-is-rejected-display-a-full-screen-rejection-notice-if-their-status-is-active-or-superadmin-allow-normal-app-access-if-they-are-new-not-yet-registered-register-them-and-then-route-based-on-the-assigned-status",
-      "title": "After a user logs in via Internet Identity, check their registration status. If their status is Pending, display a full-screen waiting screen informing them that their account is awaiting admin approval. If their status is Rejected, display a full-screen rejection notice. If their status is Active or SuperAdmin, allow normal app access. If they are new (not yet registered), register them and then route based on the assigned status.",
+      "id": "feature-in-the-frontend-update-the-post-login-routing-logic-in-frontend-src-app-tsx-so-that-when-the-authenticated-user-s-principal-matches-mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae-they-are-immediately-routed-to-the-admin-panel-or-home-dashboard-and-never-redirected-to-the-pendingapprovalpage-or-rejectedpage",
+      "title": "In the frontend, update the post-login routing logic in `frontend/src/App.tsx` so that when the authenticated user's principal matches `mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae`, they are immediately routed to the admin panel (or home dashboard) and never redirected to the `PendingApprovalPage` or `RejectedPage`.",
       "reqIds": [
         "REQ-2"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-add-a-basic-admin-panel-page-accessible-only-to-the-superadmin-this-page-must-display-a-table-of-all-registered-users-showing-their-principal-id-display-name-if-set-and-current-status-the-superadmin-must-be-able-to-approve-or-reject-each-pending-user-directly-from-this-table-using-action-buttons",
-      "title": "Add a basic Admin Panel page accessible only to the SuperAdmin. This page must display a table of all registered users showing their principal ID, display name (if set), and current status. The SuperAdmin must be able to approve or reject each Pending user directly from this table using action buttons.",
-      "reqIds": [
-        "REQ-3"
       ],
       "version": 1
     }
@@ -32,49 +20,7 @@
   "new_feature_requests": [
     {
       "id": "AR-1",
-      "summary": "Internet Identity authentication (passkey, Google, Apple, Microsoft sign-in)",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-2",
-      "summary": "Auto Super Admin promotion for the first registered/verified user (only once)",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-3",
-      "summary": "Pending Approval registration flow — all subsequent users wait for admin approval before login",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-4",
-      "summary": "Admin Dashboard: Role & Access Management tab — create/manage roles (Super Admin, Admin, Manager, User, Custom), RBAC permission matrix, privilege escalation protection, confirmation modals",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-5",
-      "summary": "Admin Dashboard: User Management tab — full user table with filters (Pending/Active/Suspended/Rejected), approve/reject, assign roles & storage quotas (GB), suspend/deactivate, search & sort, role badges",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-6",
-      "summary": "Detailed audit log with before/after values for every key action (approvals, role changes, promotions, quota changes) including timestamp and actor",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-7",
-      "summary": "Configurable storage quotas (GB) per user — displayed and assigned via admin dashboard",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-8",
-      "summary": "Add a user registration status system to the backend. Each registered principal must have a status field with possible values: SuperAdmin, Active, Pending, Rejected, Suspended. When the very first user logs in and registers, automatically assign them SuperAdmin status. All subsequent users who log in for the first time must be assigned Pending status.",
+      "summary": "In the backend, hardcode the principal `mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae` as the designated admin. Any `isAdmin` check must return `true` for this principal without requiring any approval record. This principal must never be subject to the approval flow — it should always be treated as fully approved and as an admin regardless of any stored approval state.",
       "reqIds": [
         "REQ-1"
       ],

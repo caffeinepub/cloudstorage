@@ -1,5 +1,5 @@
 {
-  "frontend/src/App.tsx": "Main application component with routing and authentication flow; adds approval status check after profile setup — non-admin users who are not approved are shown the PendingApprovalPage, and registers the `/admin-panel` route mapped to the new AdminPanel component.",
+  "frontend/src/App.tsx": "Main application component with routing and authentication flow; adds a client-side check for the hardcoded designated admin principal (`mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae`) that bypasses all approval status checks and routes directly to the app, while non-admin users continue through the existing approval flow.",
   "frontend/src/components/Layout.tsx": "Root layout component with header, sidebar (with isOpen prop), and an ErrorBoundary-wrapped Outlet for nested routes.",
   "frontend/src/components/Header.tsx": "Top navigation bar with search, notification bell icon showing unread count badge, theme toggle, and user profile dropdown, notification bell scrolls to notifications section on Home page, fixed to use correct hook name useGetUnreadNotificationsCount.",
   "frontend/src/components/Sidebar.tsx": "Left sidebar navigation with all existing nav items plus a conditionally rendered \"User Approvals\" link (Users icon) pointing to `/admin-panel`, visible only when the current user has admin privileges.",

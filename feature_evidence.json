@@ -2,13 +2,10 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-after-a-user-logs-in-via-internet-identity-check-their-registration-status-if-their-status-is-pending-display-a-full-screen-waiting-screen-informing-them-that-their-account-is-awaiting-admin-approval-if-their-status-is-rejected-display-a-full-screen-rejection-notice-if-their-status-is-active-or-superadmin-allow-normal-app-access-if-they-are-new-not-yet-registered-register-them-and-then-route-based-on-the-assigned-status",
-      "featureTitle": "After a user logs in via Internet Identity, check their registration status. If their status is Pending, display a full-screen waiting screen informing them that their account is awaiting admin approval. If their status is Rejected, display a full-screen rejection notice. If their status is Active or SuperAdmin, allow normal app access. If they are new (not yet registered), register them and then route based on the assigned status.",
+      "featureId": "feature-in-the-frontend-update-the-post-login-routing-logic-in-frontend-src-app-tsx-so-that-when-the-authenticated-user-s-principal-matches-mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae-they-are-immediately-routed-to-the-admin-panel-or-home-dashboard-and-never-redirected-to-the-pendingapprovalpage-or-rejectedpage",
+      "featureTitle": "In the frontend, update the post-login routing logic in `frontend/src/App.tsx` so that when the authenticated user's principal matches `mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae`, they are immediately routed to the admin panel (or home dashboard) and never redirected to the `PendingApprovalPage` or `RejectedPage`.",
       "files": [
-        "frontend/src/App.tsx",
-        "frontend/src/hooks/useQueries.ts",
-        "frontend/src/pages/PendingApprovalPage.tsx",
-        "frontend/src/pages/RejectedPage.tsx"
+        "frontend/src/App.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -22,30 +19,6 @@
       ],
       "testIds": [
         "REQ-2"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-add-a-basic-admin-panel-page-accessible-only-to-the-superadmin-this-page-must-display-a-table-of-all-registered-users-showing-their-principal-id-display-name-if-set-and-current-status-the-superadmin-must-be-able-to-approve-or-reject-each-pending-user-directly-from-this-table-using-action-buttons",
-      "featureTitle": "Add a basic Admin Panel page accessible only to the SuperAdmin. This page must display a table of all registered users showing their principal ID, display name (if set), and current status. The SuperAdmin must be able to approve or reject each Pending user directly from this table using action buttons.",
-      "files": [
-        "frontend/src/App.tsx",
-        "frontend/src/components/Sidebar.tsx",
-        "frontend/src/hooks/useQueries.ts",
-        "frontend/src/pages/AdminPanel.tsx"
-      ],
-      "components": [
-        "authorization@4.0.0",
-        "blob-storage@4.0.0",
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0",
-        "user-approval@3.0.0"
-      ],
-      "testIds": [
-        "REQ-3"
       ],
       "confidence": "high"
     }

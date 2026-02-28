@@ -10,13 +10,14 @@ import List "mo:core/List";
 import Iter "mo:core/Iter";
 import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
+import Migration "migration";
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
 import UserApproval "user-approval/approval";
 import Storage "blob-storage/Storage";
 import MixinStorage "blob-storage/Mixin";
 
-// No explicit migration needed!
+(with migration = Migration.run)
 actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
@@ -24,32 +25,8 @@ actor {
 
   let approvalState = UserApproval.initState(accessControlState);
 
-  // Approval functions added after all fields.
-  public query ({ caller }) func isCallerApproved() : async Bool {
-    AccessControl.hasPermission(accessControlState, caller, #admin) or UserApproval.isApproved(approvalState, caller);
-  };
-
-  public shared ({ caller }) func requestApproval() : async () {
-    UserApproval.requestApproval(approvalState, caller);
-  };
-
-  public shared ({ caller }) func setApproval(user : Principal, status : UserApproval.ApprovalStatus) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can perform this action");
-    };
-    UserApproval.setApproval(approvalState, user, status);
-  };
-
-  public query ({ caller }) func listApprovals() : async [UserApproval.UserApprovalInfo] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can perform this action");
-    };
-    UserApproval.listApprovals(approvalState);
-  };
-
   // Types
   public type UserStatus = {
-    #superAdmin;
     #active;
     #pending;
     #rejected;
@@ -62,8 +39,6 @@ actor {
     status : UserStatus;
     hasCompletedRegistration : Bool;
   };
-
-  let userEntries = Map.empty<Principal, UserEntry>();
 
   type RetentionPeriod = Nat;
   type DefaultRetentionPeriod = Nat;
@@ -256,15 +231,16 @@ actor {
   let trashFolderMetadata = Map.empty<Text, TrashFolderMetadata>();
   let folderProtections = Map.empty<Text, FolderProtection>();
 
-  func isSuperAdminPrincipal(p : Principal) : Bool {
-    switch (userEntries.get(p)) {
-      case (?entry) { entry.status == #superAdmin };
-      case (null) { false };
-    };
+  func getDesignatedAdminPrincipal() : Principal {
+    Principal.fromText("mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae");
+  };
+
+  func isDesignatedAdmin(caller : Principal) : Bool {
+    caller == getDesignatedAdminPrincipal();
   };
 
   func isAdminOrSuperAdmin(caller : Principal) : Bool {
-    AccessControl.isAdmin(accessControlState, caller) or isSuperAdminPrincipal(caller);
+    AccessControl.isAdmin(accessControlState, caller) or isDesignatedAdmin(caller);
   };
 
   func getUserQuota(user : Principal) : Nat {
@@ -529,6 +505,61 @@ actor {
     };
 
     true;
+  };
+
+  public query ({ caller }) func isCallerApproved() : async Bool {
+    if (isDesignatedAdmin(caller)) { true } else {
+      AccessControl.hasPermission(accessControlState, caller, #admin) or UserApproval.isApproved(approvalState, caller);
+    };
+  };
+
+  public shared ({ caller }) func requestApproval() : async () {
+    if (not isDesignatedAdmin(caller)) {
+      UserApproval.requestApproval(approvalState, caller);
+    };
+  };
+
+  public shared ({ caller }) func setApproval(user : Principal, status : UserApproval.ApprovalStatus) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin) or isDesignatedAdmin(caller))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+
+    let isAdminSettingSuperAdmin = ?user == ?getDesignatedAdminPrincipal() and isDesignatedAdmin(caller);
+    let isSuperAdmin = isDesignatedAdmin(user);
+
+    switch (status) {
+      case (#approved) {
+        if (isSuperAdmin) {
+          Runtime.trap("Cannot approve super admin");
+        };
+        if (not isSuperAdmin and isAdminSettingSuperAdmin) {
+          Runtime.trap("Cannot approve super admin");
+        };
+      };
+      case (_) {
+        if (?user == ?getDesignatedAdminPrincipal()) {
+          Runtime.trap("Cannot update the status of the designated admin");
+        };
+      };
+    };
+
+    if (not isDesignatedAdmin(user)) {
+      UserApproval.setApproval(approvalState, user, status);
+    };
+  };
+
+  public query ({ caller }) func listApprovals() : async [UserApproval.UserApprovalInfo] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin) or isDesignatedAdmin(caller))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+
+    let approvals = UserApproval.listApprovals(approvalState);
+    let superAdminInfo : [UserApproval.UserApprovalInfo] = [{
+      principal = getDesignatedAdminPrincipal();
+      status = #approved;
+    }];
+
+    approvals.concat(superAdminInfo);
   };
 
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {

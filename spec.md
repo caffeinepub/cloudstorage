@@ -1,15 +1,10 @@
 # Specification
 
 ## Summary
-**Goal:** Add a user registration approval system with status-based access control and a SuperAdmin panel to the CloudStorage Access Control app.
+**Goal:** Hardcode a specific principal as the permanent admin, bypassing the approval flow entirely in both backend and frontend.
 
 **Planned changes:**
-- Add a `status` field to each registered principal in the backend with possible values: `SuperAdmin`, `Active`, `Pending`, `Rejected`, `Suspended`
-- Automatically assign `SuperAdmin` status to the very first user who logs in; all subsequent new users receive `Pending` status
-- Expose backend queries for a user to retrieve their own status, and for SuperAdmin to list all users with statuses
-- Expose backend update calls for SuperAdmin to approve (set `Active`) or reject (set `Rejected`) pending users
-- After login, route users to a full-screen waiting screen if `Pending`, a full-screen rejection screen if `Rejected`, or normal app flow if `Active` or `SuperAdmin`
-- Add an Admin Panel page accessible only to SuperAdmin, showing a table of all registered users (principal ID, display name, status badge) with Approve/Reject action buttons for each `Pending` user
-- Redirect non-SuperAdmin users who navigate to the Admin Panel URL to an Access Denied message
+- In the backend, define `mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae` as a hardcoded admin constant so that `isAdmin` always returns `true` for this principal and it is never subject to any approval state checks.
+- In the frontend (`App.tsx`), update post-login routing so that when the authenticated principal matches the hardcoded admin ID, the user is immediately directed to the admin dashboard and never shown the `PendingApprovalPage` or `RejectedPage`.
 
-**User-visible outcome:** After logging in, new users see a pending approval screen instead of the app. The SuperAdmin can visit the Admin Panel to view all registered users and approve or reject pending accounts, immediately granting or denying access.
+**User-visible outcome:** Logging in with the admin principal no longer shows the "Account Pending Approval" screen — the admin is routed directly to the admin dashboard. All other users continue through the normal approval flow.

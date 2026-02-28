@@ -29,6 +29,9 @@ import { Toaster } from '@/components/ui/sonner';
 import { ThemeProvider } from 'next-themes';
 import { RecentUploadsProvider } from './contexts/RecentUploadsContext';
 
+// Hardcoded designated admin principal — this user always bypasses approval checks
+const DESIGNATED_ADMIN_PRINCIPAL = 'mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae';
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -152,6 +155,10 @@ function AppContent() {
   const queryClient = useQueryClient();
   const isAuthenticated = !!identity;
 
+  // Check if the current user is the designated admin by principal ID (client-side, instant)
+  const currentPrincipal = identity?.getPrincipal().toString();
+  const isDesignatedAdmin = currentPrincipal === DESIGNATED_ADMIN_PRINCIPAL;
+
   const [connectionTimedOut, setConnectionTimedOut] = useState(false);
   const [showProfileSetup, setShowProfileSetup] = useState(false);
 
@@ -161,6 +168,7 @@ function AppContent() {
     isFetched: profileFetched,
   } = useGetCallerUserProfile();
 
+  // Only run approval/admin checks for non-designated-admin users
   const {
     data: isApproved,
     isLoading: approvalLoading,
@@ -227,7 +235,17 @@ function AppContent() {
     );
   }
 
-  // Wait for approval and admin checks to complete before routing
+  // Designated admin bypasses all approval checks — go straight to the app
+  if (isDesignatedAdmin) {
+    return (
+      <>
+        <RouterProvider router={router} />
+        <Toaster richColors position="bottom-right" />
+      </>
+    );
+  }
+
+  // Wait for approval and admin checks to complete before routing for regular users
   const checksLoading = approvalLoading || !approvalFetched || adminLoading || !adminFetched;
   if (checksLoading) {
     return (
@@ -242,9 +260,8 @@ function AppContent() {
 
   // Admins bypass approval check
   if (!isAdmin && !isApproved) {
-    // We need to determine if the user is pending or rejected
     // isCallerApproved returns false for both pending and rejected
-    // We'll show the pending page by default; the page itself can handle the distinction
+    // Show the pending page by default; the page itself handles the distinction
     return <PendingApprovalPage />;
   }
 

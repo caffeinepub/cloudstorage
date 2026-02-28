@@ -1,71 +1,21 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "User Registration with Pending Approval — Step 1 (Frontend)",
+  "title": "Hardcode admin principal ID to bypass approval flow",
   "requirements": [
     {
       "id": "REQ-2",
-      "summary": "Display status-based screens after login: Pending users see a waiting screen, Rejected users see a rejection notice, and Active/SuperAdmin users access the app normally",
+      "summary": "Update frontend routing logic to bypass approval checks for hardcoded admin principal",
       "acceptanceCriteria": [
-        "Pending users see a waiting screen with a clear message that approval is required, and cannot access any other page.",
-        "Rejected users see a rejection screen and cannot access any other page.",
-        "SuperAdmin and Active users proceed to the normal app flow.",
-        "The waiting and rejection screens are styled consistently with the existing app theme."
+        "Logging in with the admin principal does not show the 'Account Pending Approval' screen.",
+        "The admin principal is redirected directly to the admin dashboard or home page after login.",
+        "Non-admin principals still see the pending approval or rejected pages as appropriate."
       ],
       "file_operations": [
         {
           "path": "frontend/src/App.tsx",
           "operation": "modify",
-          "description": "Add approval status check after profile setup is complete. If the user has a profile but is not approved (via isCallerApproved query), route them to the appropriate status screen (/pending, /rejected) based on their approval status. SuperAdmin and Active users proceed to the normal authenticated flow. Verify the user-approval component's usage instructions before implementing."
-        },
-        {
-          "path": "frontend/src/pages/PendingApprovalPage.tsx",
-          "operation": "create",
-          "description": "Create a full-screen waiting page for users with Pending status. Display a centered card with an icon, heading ('Account Pending Approval'), and message explaining that an administrator must approve their account before they can access the application. Style consistently with the existing theme using Tailwind and shadcn/ui components. Include a logout button."
-        },
-        {
-          "path": "frontend/src/pages/RejectedPage.tsx",
-          "operation": "create",
-          "description": "Create a full-screen rejection page for users with Rejected status. Display a centered card with an icon, heading ('Account Access Denied'), and message informing them that their account request was not approved. Style consistently with the existing theme using Tailwind and shadcn/ui components. Include a logout button."
-        },
-        {
-          "path": "frontend/src/hooks/useQueries.ts",
-          "operation": "modify",
-          "description": "Add a useIsCallerApproved query hook that calls actor.isCallerApproved() to determine if the current user is approved. Enable the query only when the actor is available and the user is authenticated. Return the approval boolean along with loading and error states."
-        }
-      ]
-    },
-    {
-      "id": "REQ-3",
-      "summary": "Add an Admin Panel page with a user table showing principal ID, display name, and status, allowing SuperAdmin to approve or reject Pending users",
-      "acceptanceCriteria": [
-        "The Admin Panel page is only reachable by a user with SuperAdmin status; all others are redirected.",
-        "The user table lists all registered principals with their status displayed as a badge.",
-        "Approve and Reject buttons appear for each user with Pending status.",
-        "Clicking Approve updates the user's status to Active; clicking Reject updates it to Rejected.",
-        "The table refreshes after each approve or reject action.",
-        "A non-SuperAdmin who navigates to the Admin Panel URL sees an Access Denied message."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/pages/AdminPanel.tsx",
-          "operation": "create",
-          "description": "Create an admin-only user management page that fetches the list of all users via listApprovals and displays them in a table. Each row shows the user's principal ID, display name (fetched via getUserProfile if available, otherwise show truncated principal), and approval status as a colored badge. For Pending users, display Approve and Reject action buttons that call setApproval with the appropriate status. Show a loading skeleton while data is fetching. If the current user is not a SuperAdmin (check via getCallerUserRole or isCallerAdmin), display an Access Denied message and prevent table rendering. After each approval action, invalidate the listApprovals query to refresh the table. Verify the user-approval component's usage instructions before implementing."
-        },
-        {
-          "path": "frontend/src/App.tsx",
-          "operation": "modify",
-          "description": "Register the /admin-panel route in the router and map it to the AdminPanel component. Ensure the route is protected and only accessible after authentication and approval checks pass."
-        },
-        {
-          "path": "frontend/src/components/Sidebar.tsx",
-          "operation": "modify",
-          "description": "Add a navigation link to the Admin Panel (/admin-panel) in the sidebar. Display this link only if the current user has SuperAdmin status (check via getCallerUserRole or isCallerAdmin query). Place the link in an appropriate section, such as below the main navigation items or in a dedicated admin section."
-        },
-        {
-          "path": "frontend/src/hooks/useQueries.ts",
-          "operation": "modify",
-          "description": "Add query hooks for listApprovals (fetching all user approval info), getCallerUserRole (fetching the caller's role), and isCallerAdmin (checking if caller is admin). Add mutation hooks for setApproval (admin approving or rejecting a user). Enable these queries only when the actor is available and the user is authenticated. Ensure setApproval mutation invalidates the listApprovals query on success."
+          "description": "Modify the post-login routing logic to check if the authenticated user's principal matches `mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae`. If it matches, route directly to the home dashboard without calling isCallerApproved or checking approval status. Ensure non-admin users continue through the existing approval flow (PendingApprovalPage or RejectedPage). The hardcoded principal string must be exact and unaltered."
         }
       ]
     }

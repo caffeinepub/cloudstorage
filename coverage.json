@@ -1,91 +1,43 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-28T20:18:25.142Z",
+  "generatedAt": "2026-02-28T20:43:00.915Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 3,
-    "implemented": 2,
+    "total": 2,
+    "implemented": 1,
     "items": [
       {
         "id": "REQ-1",
-        "summary": "Add a user registration status system to the backend. Each registered principal must have a status field with possible values: SuperAdmin, Active, Pending, Rejected, Suspended. When the very first user logs in and registers, automatically assign them SuperAdmin status. All subsequent users who log in for the first time must be assigned Pending status.",
+        "summary": "In the backend, hardcode the principal `mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae` as the designated admin. Any `isAdmin` check must return `true` for this principal without requiring any approval record. This principal must never be subject to the approval flow — it should always be treated as fully approved and as an admin regardless of any stored approval state.",
         "status": "unknown",
         "plannedFiles": [],
         "matchedFiles": []
       },
       {
         "id": "REQ-2",
-        "summary": "After a user logs in via Internet Identity, check their registration status. If their status is Pending, display a full-screen waiting screen informing them that their account is awaiting admin approval. If their status is Rejected, display a full-screen rejection notice. If their status is Active or SuperAdmin, allow normal app access. If they are new (not yet registered), register them and then route based on the assigned status.",
+        "summary": "In the frontend, update the post-login routing logic in `frontend/src/App.tsx` so that when the authenticated user's principal matches `mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae`, they are immediately routed to the admin panel (or home dashboard) and never redirected to the `PendingApprovalPage` or `RejectedPage`.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/App.tsx",
-          "frontend/src/pages/PendingApprovalPage.tsx",
-          "frontend/src/pages/RejectedPage.tsx",
-          "frontend/src/hooks/useQueries.ts"
+          "frontend/src/App.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/App.tsx",
-          "frontend/src/pages/PendingApprovalPage.tsx",
-          "frontend/src/pages/RejectedPage.tsx",
-          "frontend/src/hooks/useQueries.ts"
-        ]
-      },
-      {
-        "id": "REQ-3",
-        "summary": "Add a basic Admin Panel page accessible only to the SuperAdmin. This page must display a table of all registered users showing their principal ID, display name (if set), and current status. The SuperAdmin must be able to approve or reject each Pending user directly from this table using action buttons.",
-        "status": "implemented",
-        "plannedFiles": [
-          "frontend/src/pages/AdminPanel.tsx",
-          "frontend/src/App.tsx",
-          "frontend/src/components/Sidebar.tsx",
-          "frontend/src/hooks/useQueries.ts"
-        ],
-        "matchedFiles": [
-          "frontend/src/pages/AdminPanel.tsx",
-          "frontend/src/App.tsx",
-          "frontend/src/components/Sidebar.tsx",
-          "frontend/src/hooks/useQueries.ts"
+          "frontend/src/App.tsx"
         ]
       }
     ]
   },
   "changedFiles": [
     "backend/main.mo",
-    "backend/user-approval/approval.mo",
+    "backend/migration.mo",
     "build-request.json",
-    "caffeine.lock.json",
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
     "frontend/src/App.tsx",
-    "frontend/src/backend.d.ts",
-    "frontend/src/backend.ts",
-    "frontend/src/components/DeleteConfirmationDialog.tsx",
-    "frontend/src/components/FileList.tsx",
-    "frontend/src/components/FolderPasswordPrompt.tsx",
-    "frontend/src/components/FolderProtectionModal.tsx",
-    "frontend/src/components/Notifications.tsx",
-    "frontend/src/components/RecentActivityCard.tsx",
-    "frontend/src/components/SharedByMe.tsx",
-    "frontend/src/components/SharedWithMe.tsx",
-    "frontend/src/components/Sidebar.tsx",
-    "frontend/src/components/SmartSuggestions.tsx",
-    "frontend/src/components/TrashFilters.tsx",
-    "frontend/src/components/UserStorageManager.tsx",
-    "frontend/src/declarations/backend.did.d.ts",
-    "frontend/src/declarations/backend.did.js",
-    "frontend/src/hooks/useQueries.ts",
-    "frontend/src/pages/AdminPanel.tsx",
-    "frontend/src/pages/Favorites.tsx",
-    "frontend/src/pages/PendingApprovalPage.tsx",
-    "frontend/src/pages/Recent.tsx",
-    "frontend/src/pages/RejectedPage.tsx",
-    "frontend/src/pages/Settings.tsx",
-    "frontend/src/pages/Trash.tsx",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",
