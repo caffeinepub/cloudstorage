@@ -1,16 +1,15 @@
 # Specification
 
 ## Summary
-**Goal:** Add five bulk action icon buttons to the Selection Bulk Action bar in FileList.tsx that only appear when 2 or more files are selected.
+**Goal:** Add a user registration approval system with status-based access control and a SuperAdmin panel to the CloudStorage Access Control app.
 
 **Planned changes:**
-- Add five new icon buttons (Download All, Favorites All, Shared All, Move All, Delete All) to the bulk action bar, placed immediately after the "Deselect All" button
-- Hide all five buttons when only 1 file is selected; show them only when 2+ files are selected
-- Implement Download All: trigger individual file downloads for all selected files, with a toast confirmation
-- Implement Favorites All: add all selected files to Favorites using the existing favorites mutation hook, with a toast notification
-- Implement Shared All: trigger the share flow for all selected files using existing share mutation hooks, opening a minimal dialog if share details are required
-- Implement Move All: open the existing folder selection dialog and move all selected files to the chosen destination using the existing move mutation
-- Implement Delete All: open a confirmation dialog showing the number of files to be deleted, then delete all selected files using the existing delete mutation, clear selection afterward
-- All operations reuse existing mutation hooks from useQueries.ts and show success/error toast notifications
+- Add a `status` field to each registered principal in the backend with possible values: `SuperAdmin`, `Active`, `Pending`, `Rejected`, `Suspended`
+- Automatically assign `SuperAdmin` status to the very first user who logs in; all subsequent new users receive `Pending` status
+- Expose backend queries for a user to retrieve their own status, and for SuperAdmin to list all users with statuses
+- Expose backend update calls for SuperAdmin to approve (set `Active`) or reject (set `Rejected`) pending users
+- After login, route users to a full-screen waiting screen if `Pending`, a full-screen rejection screen if `Rejected`, or normal app flow if `Active` or `SuperAdmin`
+- Add an Admin Panel page accessible only to SuperAdmin, showing a table of all registered users (principal ID, display name, status badge) with Approve/Reject action buttons for each `Pending` user
+- Redirect non-SuperAdmin users who navigate to the Admin Panel URL to an Access Denied message
 
-**User-visible outcome:** When 2 or more files are selected, users see five additional bulk action buttons in the selection bar, allowing them to download, favorite, share, move, or delete all selected files at once in a single action.
+**User-visible outcome:** After logging in, new users see a pending approval screen instead of the app. The SuperAdmin can visit the Admin Panel to view all registered users and approve or reject pending accounts, immediately granting or denying access.

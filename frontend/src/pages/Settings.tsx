@@ -14,7 +14,7 @@ import {
 import { useTheme } from 'next-themes';
 import {
   useGetCallerUserProfile,
-  useGetTrashRetentionPeriod,
+  useGetUserRetentionPeriod,
   useSetUserRetentionPeriod,
 } from '../hooks/useQueries';
 import { useInternetIdentity } from '../hooks/useInternetIdentity';
@@ -24,7 +24,7 @@ import { toast } from 'sonner';
 export default function Settings() {
   const { theme, setTheme } = useTheme();
   const { data: userProfile } = useGetCallerUserProfile();
-  const { data: retentionPeriod } = useGetTrashRetentionPeriod();
+  const { data: retentionPeriod } = useGetUserRetentionPeriod();
   const setRetentionPeriod = useSetUserRetentionPeriod();
   const { identity } = useInternetIdentity();
 
@@ -43,10 +43,10 @@ export default function Settings() {
       const periodNanoseconds = BigInt(daysNum * 24 * 60 * 60 * 1000000000);
       await setRetentionPeriod.mutateAsync({
         user: identity.getPrincipal(),
-        retentionPeriod: periodNanoseconds,
+        period: periodNanoseconds,
       });
       toast.success(`Trash retention period updated to ${days} days`);
-    } catch (error) {
+    } catch {
       toast.error('Failed to update retention period');
     }
   };
@@ -82,7 +82,7 @@ export default function Settings() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Trash & Recovery</CardTitle>
+            <CardTitle>Trash &amp; Recovery</CardTitle>
             <CardDescription>Configure trash retention settings</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -198,7 +198,7 @@ export default function Settings() {
           © {new Date().getFullYear()} CloudStorage. Built with ❤️ using{' '}
           <a
             href={`https://caffeine.ai/?utm_source=Caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(
-              window.location.hostname
+              window.location.hostname,
             )}`}
             target="_blank"
             rel="noopener noreferrer"

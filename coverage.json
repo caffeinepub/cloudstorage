@@ -1,95 +1,91 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-27T07:03:53.123Z",
+  "generatedAt": "2026-02-28T20:18:25.142Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 6,
-    "implemented": 6,
+    "total": 3,
+    "implemented": 2,
     "items": [
       {
         "id": "REQ-1",
-        "summary": "Add five new bulk action icon buttons to the Selection Bulk Action bar in FileList.tsx, placed immediately after the 'Deselect All' button. The five buttons are: (1) Download All, (2) Favorites All, (3) Shared All, (4) Move All, (5) Delete All. All five buttons must be hidden when only 1 file is selected and must only appear when 2 or more files are selected.",
-        "status": "implemented",
-        "plannedFiles": [
-          "frontend/src/components/FileList.tsx"
-        ],
-        "matchedFiles": [
-          "frontend/src/components/FileList.tsx"
-        ]
+        "summary": "Add a user registration status system to the backend. Each registered principal must have a status field with possible values: SuperAdmin, Active, Pending, Rejected, Suspended. When the very first user logs in and registers, automatically assign them SuperAdmin status. All subsequent users who log in for the first time must be assigned Pending status.",
+        "status": "unknown",
+        "plannedFiles": [],
+        "matchedFiles": []
       },
       {
         "id": "REQ-2",
-        "summary": "Implement the 'Download All' bulk action: when the user clicks Download All with 2+ files selected, trigger a download of each selected file to the user's device using the existing file retrieval mechanism (similar to the single-file download in FilePreview.tsx).",
+        "summary": "After a user logs in via Internet Identity, check their registration status. If their status is Pending, display a full-screen waiting screen informing them that their account is awaiting admin approval. If their status is Rejected, display a full-screen rejection notice. If their status is Active or SuperAdmin, allow normal app access. If they are new (not yet registered), register them and then route based on the assigned status.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/components/FileList.tsx"
+          "frontend/src/App.tsx",
+          "frontend/src/pages/PendingApprovalPage.tsx",
+          "frontend/src/pages/RejectedPage.tsx",
+          "frontend/src/hooks/useQueries.ts"
         ],
         "matchedFiles": [
-          "frontend/src/components/FileList.tsx"
+          "frontend/src/App.tsx",
+          "frontend/src/pages/PendingApprovalPage.tsx",
+          "frontend/src/pages/RejectedPage.tsx",
+          "frontend/src/hooks/useQueries.ts"
         ]
       },
       {
         "id": "REQ-3",
-        "summary": "Implement the 'Favorites All' bulk action: when the user clicks Favorites All with 2+ files selected, add all selected files to the Favorites section using the existing favorites mutation hook (useAddToFavorites or equivalent from useQueries.ts).",
+        "summary": "Add a basic Admin Panel page accessible only to the SuperAdmin. This page must display a table of all registered users showing their principal ID, display name (if set), and current status. The SuperAdmin must be able to approve or reject each Pending user directly from this table using action buttons.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/components/FileList.tsx"
+          "frontend/src/pages/AdminPanel.tsx",
+          "frontend/src/App.tsx",
+          "frontend/src/components/Sidebar.tsx",
+          "frontend/src/hooks/useQueries.ts"
         ],
         "matchedFiles": [
-          "frontend/src/components/FileList.tsx"
-        ]
-      },
-      {
-        "id": "REQ-4",
-        "summary": "Implement the 'Shared All' bulk action: when the user clicks Shared All with 2+ files selected, move or mark all selected files as shared using the existing share mutation hooks from useQueries.ts. If sharing requires a recipient or permission selection, open a minimal dialog to collect the required input.",
-        "status": "implemented",
-        "plannedFiles": [
-          "frontend/src/components/BulkShareDialog.tsx",
-          "frontend/src/components/FileList.tsx"
-        ],
-        "matchedFiles": [
-          "frontend/src/components/BulkShareDialog.tsx",
-          "frontend/src/components/FileList.tsx"
-        ]
-      },
-      {
-        "id": "REQ-5",
-        "summary": "Implement the 'Move All' bulk action: when the user clicks Move All with 2+ files selected, open the existing MoveToFolderDialog (or equivalent) configured to move all selected files to a chosen destination folder using the useMoveFilesToFolder mutation.",
-        "status": "implemented",
-        "plannedFiles": [
-          "frontend/src/components/FileList.tsx"
-        ],
-        "matchedFiles": [
-          "frontend/src/components/FileList.tsx"
-        ]
-      },
-      {
-        "id": "REQ-6",
-        "summary": "Implement the 'Delete All' bulk action: when the user clicks Delete All with 2+ files selected, open a confirmation dialog (reusing or extending DeleteFileDialog/DeleteConfirmationDialog) and upon confirmation, delete all selected files at once using the existing delete mutation hooks.",
-        "status": "implemented",
-        "plannedFiles": [
-          "frontend/src/components/BulkDeleteDialog.tsx",
-          "frontend/src/components/FileList.tsx"
-        ],
-        "matchedFiles": [
-          "frontend/src/components/BulkDeleteDialog.tsx",
-          "frontend/src/components/FileList.tsx"
+          "frontend/src/pages/AdminPanel.tsx",
+          "frontend/src/App.tsx",
+          "frontend/src/components/Sidebar.tsx",
+          "frontend/src/hooks/useQueries.ts"
         ]
       }
     ]
   },
   "changedFiles": [
+    "backend/main.mo",
+    "backend/user-approval/approval.mo",
     "build-request.json",
+    "caffeine.lock.json",
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
-    "frontend/src/components/BulkDeleteDialog.tsx",
-    "frontend/src/components/BulkShareDialog.tsx",
+    "frontend/src/App.tsx",
+    "frontend/src/backend.d.ts",
+    "frontend/src/backend.ts",
+    "frontend/src/components/DeleteConfirmationDialog.tsx",
     "frontend/src/components/FileList.tsx",
+    "frontend/src/components/FolderPasswordPrompt.tsx",
+    "frontend/src/components/FolderProtectionModal.tsx",
+    "frontend/src/components/Notifications.tsx",
+    "frontend/src/components/RecentActivityCard.tsx",
+    "frontend/src/components/SharedByMe.tsx",
+    "frontend/src/components/SharedWithMe.tsx",
+    "frontend/src/components/Sidebar.tsx",
+    "frontend/src/components/SmartSuggestions.tsx",
+    "frontend/src/components/TrashFilters.tsx",
+    "frontend/src/components/UserStorageManager.tsx",
+    "frontend/src/declarations/backend.did.d.ts",
+    "frontend/src/declarations/backend.did.js",
+    "frontend/src/hooks/useQueries.ts",
+    "frontend/src/pages/AdminPanel.tsx",
+    "frontend/src/pages/Favorites.tsx",
+    "frontend/src/pages/PendingApprovalPage.tsx",
+    "frontend/src/pages/Recent.tsx",
+    "frontend/src/pages/RejectedPage.tsx",
+    "frontend/src/pages/Settings.tsx",
+    "frontend/src/pages/Trash.tsx",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

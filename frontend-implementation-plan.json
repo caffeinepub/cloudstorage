@@ -1,116 +1,71 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Add 5 Bulk Action Icons to Selection Bar (Download All, Favorites All, Shared All, Move All, Delete All)",
+  "title": "User Registration with Pending Approval — Step 1 (Frontend)",
   "requirements": [
     {
-      "id": "REQ-1",
-      "summary": "Add five new bulk action icon buttons (Download All, Favorites All, Shared All, Move All, Delete All) to the Selection Bulk Action bar in FileList.tsx, visible only when 2+ files are selected",
-      "acceptanceCriteria": [
-        "When exactly 1 file is selected, the five new bulk action buttons are not visible.",
-        "When 2 or more files are selected, all five new bulk action buttons appear after the Deselect All button in the bulk action bar.",
-        "Each button has a distinct, recognizable icon and a tooltip or label: Download All, Favorites All, Shared All, Move All, Delete All.",
-        "The existing per-file three-dot menu items (Preview, Rename, Move, Add to Favorites, Delete) remain unchanged."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/components/FileList.tsx",
-          "operation": "modify",
-          "description": "Add five new bulk action buttons (Download All, Favorites All, Shared All, Move All, Delete All) to the selection bar after the 'Deselect All' button. Wrap these five buttons in a conditional render that checks selectedFiles.size >= 2. Import necessary icons from lucide-react (Download, Heart, Share2, FolderInput, Trash2). Each button should have appropriate styling, tooltips, and onClick handlers (initially empty stubs). Keep the existing per-file DropdownMenu items unchanged."
-        }
-      ]
-    },
-    {
       "id": "REQ-2",
-      "summary": "Implement the 'Download All' bulk action to download each selected file using the existing file retrieval mechanism",
+      "summary": "Display status-based screens after login: Pending users see a waiting screen, Rejected users see a rejection notice, and Active/SuperAdmin users access the app normally",
       "acceptanceCriteria": [
-        "Clicking Download All initiates a download for every selected file.",
-        "Each file is downloaded individually to the user's device.",
-        "A toast notification confirms the download action was triggered."
+        "Pending users see a waiting screen with a clear message that approval is required, and cannot access any other page.",
+        "Rejected users see a rejection screen and cannot access any other page.",
+        "SuperAdmin and Active users proceed to the normal app flow.",
+        "The waiting and rejection screens are styled consistently with the existing app theme."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/components/FileList.tsx",
+          "path": "frontend/src/App.tsx",
           "operation": "modify",
-          "description": "Implement the handleDownloadAll function that iterates over selectedFiles, fetches each file's binary data using actor.downloadFileChunk (similar to FilePreview.tsx download logic), and triggers a browser download for each file using a Blob and anchor element. Show a toast notification indicating the number of files being downloaded. Handle errors gracefully with error toasts."
+          "description": "Add approval status check after profile setup is complete. If the user has a profile but is not approved (via isCallerApproved query), route them to the appropriate status screen (/pending, /rejected) based on their approval status. SuperAdmin and Active users proceed to the normal authenticated flow. Verify the user-approval component's usage instructions before implementing."
+        },
+        {
+          "path": "frontend/src/pages/PendingApprovalPage.tsx",
+          "operation": "create",
+          "description": "Create a full-screen waiting page for users with Pending status. Display a centered card with an icon, heading ('Account Pending Approval'), and message explaining that an administrator must approve their account before they can access the application. Style consistently with the existing theme using Tailwind and shadcn/ui components. Include a logout button."
+        },
+        {
+          "path": "frontend/src/pages/RejectedPage.tsx",
+          "operation": "create",
+          "description": "Create a full-screen rejection page for users with Rejected status. Display a centered card with an icon, heading ('Account Access Denied'), and message informing them that their account request was not approved. Style consistently with the existing theme using Tailwind and shadcn/ui components. Include a logout button."
+        },
+        {
+          "path": "frontend/src/hooks/useQueries.ts",
+          "operation": "modify",
+          "description": "Add a useIsCallerApproved query hook that calls actor.isCallerApproved() to determine if the current user is approved. Enable the query only when the actor is available and the user is authenticated. Return the approval boolean along with loading and error states."
         }
       ]
     },
     {
       "id": "REQ-3",
-      "summary": "Implement the 'Favorites All' bulk action to add all selected files to Favorites using the existing favorites mutation hook",
+      "summary": "Add an Admin Panel page with a user table showing principal ID, display name, and status, allowing SuperAdmin to approve or reject Pending users",
       "acceptanceCriteria": [
-        "Clicking Favorites All adds all selected files to the Favorites section.",
-        "A success or error toast notification is shown after the operation.",
-        "The Favorites section reflects the newly added files."
+        "The Admin Panel page is only reachable by a user with SuperAdmin status; all others are redirected.",
+        "The user table lists all registered principals with their status displayed as a badge.",
+        "Approve and Reject buttons appear for each user with Pending status.",
+        "Clicking Approve updates the user's status to Active; clicking Reject updates it to Rejected.",
+        "The table refreshes after each approve or reject action.",
+        "A non-SuperAdmin who navigates to the Admin Panel URL sees an Access Denied message."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/components/FileList.tsx",
-          "operation": "modify",
-          "description": "Implement the handleFavoritesAll function that uses the existing addToFavoritesMutation hook from useQueries.ts. Iterate over selectedFiles and call addToFavoritesMutation.mutateAsync for each file. Use Promise.allSettled to batch the operations and display a toast notification summarizing successes and failures. Clear selection after completion."
-        }
-      ]
-    },
-    {
-      "id": "REQ-4",
-      "summary": "Implement the 'Shared All' bulk action to share all selected files using the existing share mutation hooks",
-      "acceptanceCriteria": [
-        "Clicking Shared All triggers the share flow for all selected files.",
-        "If a dialog is needed for share details, it opens and collects input before proceeding.",
-        "A success or error toast notification is shown after the operation.",
-        "Shared files appear in the Shared section."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/components/BulkShareDialog.tsx",
+          "path": "frontend/src/pages/AdminPanel.tsx",
           "operation": "create",
-          "description": "Create a new dialog component that collects share parameters (recipient Principal, permissions: canView, canEdit, canDownload, optional message) for bulk sharing. Use shadcn/ui Dialog, Input, Checkbox, and Textarea components. Export a BulkShareDialog component that accepts selectedFileIds, isOpen, onClose props and uses the shareFileMutation hook from useQueries.ts to share each file with the same recipient and permissions."
+          "description": "Create an admin-only user management page that fetches the list of all users via listApprovals and displays them in a table. Each row shows the user's principal ID, display name (fetched via getUserProfile if available, otherwise show truncated principal), and approval status as a colored badge. For Pending users, display Approve and Reject action buttons that call setApproval with the appropriate status. Show a loading skeleton while data is fetching. If the current user is not a SuperAdmin (check via getCallerUserRole or isCallerAdmin), display an Access Denied message and prevent table rendering. After each approval action, invalidate the listApprovals query to refresh the table. Verify the user-approval component's usage instructions before implementing."
         },
         {
-          "path": "frontend/src/components/FileList.tsx",
+          "path": "frontend/src/App.tsx",
           "operation": "modify",
-          "description": "Add state for isBulkShareDialogOpen and implement handleSharedAll function that opens the BulkShareDialog. Import and render the BulkShareDialog component, passing selectedFiles array converted to file IDs. Wire the dialog's onClose to clear selection and show success/error toast notifications."
-        }
-      ]
-    },
-    {
-      "id": "REQ-5",
-      "summary": "Implement the 'Move All' bulk action to move all selected files to a chosen destination folder using the useMoveFilesToFolder mutation",
-      "acceptanceCriteria": [
-        "Clicking Move All opens the folder selection dialog.",
-        "After confirming a destination, all selected files are moved to that folder.",
-        "A success or error toast notification is shown after the operation.",
-        "The file list updates to reflect the moved files."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/components/FileList.tsx",
-          "operation": "modify",
-          "description": "Add state for isBulkMoveDialogOpen and fileIdsToMove. Implement handleMoveAll function that sets fileIdsToMove to Array.from(selectedFiles) and opens the MoveToFolderDialog. Wire the existing MoveToFolderDialog component to accept the fileIdsToMove prop (already supports multiple files). On successful move, clear selection and show a success toast."
-        }
-      ]
-    },
-    {
-      "id": "REQ-6",
-      "summary": "Implement the 'Delete All' bulk action to delete all selected files after confirmation using the existing delete mutation hooks",
-      "acceptanceCriteria": [
-        "Clicking Delete All opens a confirmation dialog listing the number of files to be deleted.",
-        "Upon confirmation, all selected files are deleted.",
-        "A success or error toast notification is shown after the operation.",
-        "The file list updates to remove the deleted files.",
-        "The selection is cleared after deletion."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/components/BulkDeleteDialog.tsx",
-          "operation": "create",
-          "description": "Create a new confirmation dialog component for bulk deletion that extends or reuses logic from DeleteFileDialog.tsx. Accept selectedFiles (Set or Array of file IDs), isOpen, onClose, and onConfirm props. Display the count of selected files and a retention period selector (30, 60, or 90 days radio buttons). On confirmation, call onConfirm with the selected retention period. Use shadcn/ui AlertDialog components for styling."
+          "description": "Register the /admin-panel route in the router and map it to the AdminPanel component. Ensure the route is protected and only accessible after authentication and approval checks pass."
         },
         {
-          "path": "frontend/src/components/FileList.tsx",
+          "path": "frontend/src/components/Sidebar.tsx",
           "operation": "modify",
-          "description": "Add state for isBulkDeleteDialogOpen. Implement handleDeleteAll function that opens the BulkDeleteDialog. Wire the dialog's onConfirm handler to iterate over selectedFiles and call deleteFileMutation.mutateAsync for each file with the chosen retention period using Promise.allSettled. Display a toast summarizing successes and failures, clear selection, and close the dialog after completion."
+          "description": "Add a navigation link to the Admin Panel (/admin-panel) in the sidebar. Display this link only if the current user has SuperAdmin status (check via getCallerUserRole or isCallerAdmin query). Place the link in an appropriate section, such as below the main navigation items or in a dedicated admin section."
+        },
+        {
+          "path": "frontend/src/hooks/useQueries.ts",
+          "operation": "modify",
+          "description": "Add query hooks for listApprovals (fetching all user approval info), getCallerUserRole (fetching the caller's role), and isCallerAdmin (checking if caller is admin). Add mutation hooks for setApproval (admin approving or rejecting a user). Enable these queries only when the actor is available and the user is authenticated. Ensure setApproval mutation invalidates the listApprovals query on success."
         }
       ]
     }

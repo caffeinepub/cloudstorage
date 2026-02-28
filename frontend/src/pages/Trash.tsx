@@ -1,8 +1,9 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Table,
   TableBody,
@@ -19,635 +20,459 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   FileText,
-  Image,
-  Video,
-  Music,
-  File,
   Folder as FolderIcon,
   MoreVertical,
   RotateCcw,
   Trash2,
-  ArrowUpDown,
+  AlertTriangle,
   Loader2,
 } from 'lucide-react';
-import TrashFilters from '../components/TrashFilters';
-import RestoreDialog from '../components/RestoreDialog';
-import DeleteConfirmationDialog from '../components/DeleteConfirmationDialog';
-import DeleteFolderConfirmationDialog from '../components/DeleteFolderConfirmationDialog';
-import TrashStorageIndicator from '../components/TrashStorageIndicator';
-import PaginationControls from '../components/PaginationControls';
 import {
-  useListTrashFiles,
-  useListTrashFolders,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  useGetTrash,
+  useGetTrashFolders,
   useRestoreFile,
   useRestoreFolder,
   usePermanentlyDeleteFile,
   usePermanentlyDeleteFolder,
   useIsCallerAdmin,
-  type TrashItem,
-  type TrashFolderItem,
 } from '../hooks/useQueries';
+import type { TrashItem, TrashFolderItem } from '../hooks/useQueries';
 import { usePagination } from '../hooks/usePagination';
 import { toast } from 'sonner';
 import { Principal } from '@icp-sdk/core/principal';
 
-type SortColumn = 'name' | 'deletedAt' | 'size' | 'owner' | 'retention' | 'type';
-type SortDirection = 'asc' | 'desc';
-type TrashItemType = 'file' | 'folder';
+function formatFileSize(bytes: bigint): string {
+  const n = Number(bytes);
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
 
-interface UnifiedTrashItem {
-  id: string;
-  type: TrashItemType;
-  name: string;
-  deletedAt: bigint;
-  size: bigint;
-  owner: Principal;
-  originalPath: string;
-  retentionPeriod: bigint;
-  fileData?: TrashItem;
-  folderData?: TrashFolderItem;
+function formatDate(ns: bigint): string {
+  return new Date(Number(ns) / 1_000_000).toLocaleDateString();
 }
 
 export default function Trash() {
-  const [adminOwnerFilter, setAdminOwnerFilter] = useState<Principal | null>(null);
-  const [filteredItems, setFilteredItems] = useState<UnifiedTrashItem[]>([]);
-  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
-  const [sortColumn, setSortColumn] = useState<SortColumn>('deletedAt');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
-  const [deleteFileDialogOpen, setDeleteFileDialogOpen] = useState(false);
-  const [deleteFolderDialogOpen, setDeleteFolderDialogOpen] = useState(false);
-  const [emptyTrashDialogOpen, setEmptyTrashDialogOpen] = useState(false);
-  const [itemsToRestore, setItemsToRestore] = useState<UnifiedTrashItem[]>([]);
-  const [itemsToDelete, setItemsToDelete] = useState<UnifiedTrashItem[]>([]);
-  const [activeTab, setActiveTab] = useState<'files' | 'folders'>('files');
-
   const { data: isAdmin } = useIsCallerAdmin();
-  const { data: trashFiles = [], isLoading: filesLoading } = useListTrashFiles(
-    isAdmin ? adminOwnerFilter : null,
-  );
-  const { data: trashFolders = [], isLoading: foldersLoading } = useListTrashFolders(
-    isAdmin ? adminOwnerFilter : null,
-  );
+  const { data: trashFiles = [], isLoading: filesLoading } = useGetTrash();
+  const { data: trashFolders = [], isLoading: foldersLoading } = useGetTrashFolders();
+
   const restoreFileMutation = useRestoreFile();
   const restoreFolderMutation = useRestoreFolder();
-  const permanentlyDeleteFileMutation = usePermanentlyDeleteFile();
-  const permanentlyDeleteFolderMutation = usePermanentlyDeleteFolder();
+  const deleteFileMutation = usePermanentlyDeleteFile();
+  const deleteFolderMutation = usePermanentlyDeleteFolder();
 
-  // Separate pagination instances for files and folders tabs
-  const filesPagination = usePagination<UnifiedTrashItem>();
-  const foldersPagination = usePagination<UnifiedTrashItem>();
+  const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
+  const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
+  const [pendingDeleteType, setPendingDeleteType] = useState<'file' | 'folder'>('file');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filesPagination = usePagination<TrashItem>();
+  const foldersPagination = usePagination<TrashFolderItem>();
 
   const isLoading = filesLoading || foldersLoading;
 
-  // Separate items by type
-  const fileItems = useMemo<UnifiedTrashItem[]>(() => {
-    return (trashFiles || []).map((file) => ({
-      id: file.fileId,
-      type: 'file' as TrashItemType,
-      name: file.metadata.name,
-      deletedAt: file.deletedAt,
-      size: file.metadata.size,
-      owner: file.metadata.owner,
-      originalPath: file.originalPath,
-      retentionPeriod: file.retentionPeriod,
-      fileData: file,
-    }));
-  }, [trashFiles]);
+  const filteredFiles = useMemo(() => {
+    const files = (trashFiles ?? []) as TrashItem[];
+    if (!searchQuery) return files;
+    return files.filter((f) =>
+      f.metadata.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    );
+  }, [trashFiles, searchQuery]);
 
-  const folderItems = useMemo<UnifiedTrashItem[]>(() => {
-    return (trashFolders || []).map((folder) => ({
-      id: folder.folder.id,
-      type: 'folder' as TrashItemType,
-      name: folder.folder.name,
-      deletedAt: folder.deletedAt,
-      size: BigInt(0),
-      owner: folder.owner,
-      originalPath: folder.originalPath,
-      retentionPeriod: folder.retentionPeriod,
-      folderData: folder,
-    }));
-  }, [trashFolders]);
+  const filteredFolders = useMemo(() => {
+    const folders = (trashFolders ?? []) as TrashFolderItem[];
+    if (!searchQuery) return folders;
+    return folders.filter((f) =>
+      f.folder.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    );
+  }, [trashFolders, searchQuery]);
 
-  // Get items for current tab
-  const currentTabItems = useMemo(() => {
-    return activeTab === 'files' ? fileItems : folderItems;
-  }, [activeTab, fileItems, folderItems]);
+  const paginatedFiles = filesPagination.paginatedData(filteredFiles) as TrashItem[];
+  const paginatedFolders = foldersPagination.paginatedData(filteredFolders) as TrashFolderItem[];
 
-  // Memoized callback to prevent infinite loop
-  const handleFilteredDataChange = useCallback(
-    (files: TrashItem[]) => {
-      const mapped: UnifiedTrashItem[] = files.map((file) => ({
-        id: file.fileId,
-        type: 'file' as TrashItemType,
-        name: file.metadata.name,
-        deletedAt: file.deletedAt,
-        size: file.metadata.size,
-        owner: file.metadata.owner,
-        originalPath: file.originalPath,
-        retentionPeriod: file.retentionPeriod,
-        fileData: file,
-      }));
-      setFilteredItems(mapped);
-    },
-    [],
-  );
-
-  // Initialize filtered items when tab changes; also reset pagination and selection
-  useEffect(() => {
-    setFilteredItems(currentTabItems);
-    setSelectedItemIds(new Set());
-    filesPagination.resetPage();
-    foldersPagination.resetPage();
-  }, [currentTabItems]);
-
-  // Reset pagination when sort changes
-  useEffect(() => {
-    if (activeTab === 'files') {
-      filesPagination.resetPage();
-    } else {
-      foldersPagination.resetPage();
-    }
-  }, [sortColumn, sortDirection]);
-
-  const getFileIcon = (fileName: string) => {
-    const ext = fileName.split('.').pop()?.toLowerCase() || '';
-    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'].includes(ext)) {
-      return <Image className="h-4 w-4 text-blue-500" />;
-    }
-    if (['mp4', 'avi', 'mov', 'wmv', 'flv'].includes(ext)) {
-      return <Video className="h-4 w-4 text-purple-500" />;
-    }
-    if (['mp3', 'wav', 'ogg', 'flac'].includes(ext)) {
-      return <Music className="h-4 w-4 text-green-500" />;
-    }
-    if (['pdf', 'doc', 'docx', 'txt', 'rtf'].includes(ext)) {
-      return <FileText className="h-4 w-4 text-orange-500" />;
-    }
-    return <File className="h-4 w-4 text-muted-foreground" />;
-  };
-
-  const getItemIcon = (item: UnifiedTrashItem) => {
-    if (item.type === 'folder') {
-      return <FolderIcon className="h-4 w-4 text-yellow-500" />;
-    }
-    return getFileIcon(item.name);
-  };
-
-  const formatSize = (bytes: bigint) => {
-    const num = Number(bytes);
-    if (num === 0) return '—';
-    const mb = num / (1024 * 1024);
-    if (mb < 1) return `${(num / 1024).toFixed(2)} KB`;
-    if (mb < 1024) return `${mb.toFixed(2)} MB`;
-    return `${(mb / 1024).toFixed(2)} GB`;
-  };
-
-  const formatDate = (timestamp: bigint) => {
-    const date = new Date(Number(timestamp) / 1_000_000);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-  };
-
-  const calculateExpiryDate = (deletedAt: bigint, retentionPeriod: bigint) => {
-    const expirationTime = Number(deletedAt) + Number(retentionPeriod);
-    const date = new Date(expirationTime / 1_000_000);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-  };
-
-  const sortedItems = useMemo(() => {
-    const items = [...filteredItems];
-    items.sort((a, b) => {
-      let comparison = 0;
-      switch (sortColumn) {
-        case 'name':
-          comparison = a.name.localeCompare(b.name);
-          break;
-        case 'type':
-          comparison = a.type.localeCompare(b.type);
-          break;
-        case 'deletedAt':
-          comparison = Number(a.deletedAt) - Number(b.deletedAt);
-          break;
-        case 'size':
-          comparison = Number(a.size) - Number(b.size);
-          break;
-        case 'owner':
-          comparison = a.owner.toString().localeCompare(b.owner.toString());
-          break;
-        case 'retention': {
-          const aRemaining = Number(a.deletedAt) + Number(a.retentionPeriod);
-          const bRemaining = Number(b.deletedAt) + Number(b.retentionPeriod);
-          comparison = aRemaining - bRemaining;
-          break;
-        }
-      }
-      return sortDirection === 'asc' ? comparison : -comparison;
+  // File selection
+  const handleSelectFile = (id: string, checked: boolean) => {
+    setSelectedFileIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
     });
-    return items;
-  }, [filteredItems, sortColumn, sortDirection]);
+  };
 
-  // Paginated items for the current tab
-  const activePagination = activeTab === 'files' ? filesPagination : foldersPagination;
-  const paginatedItems = activePagination.paginatedData(sortedItems);
-
-  const handleSort = (column: SortColumn) => {
-    if (sortColumn === column) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+  const handleSelectAllFiles = (checked: boolean) => {
+    if (checked) {
+      setSelectedFileIds(new Set(filteredFiles.map((f) => f.fileId)));
     } else {
-      setSortColumn(column);
-      setSortDirection('asc');
+      setSelectedFileIds(new Set());
     }
   };
 
-  const handleSelectAll = () => {
-    if (selectedItemIds.size === paginatedItems.length) {
-      setSelectedItemIds(new Set());
+  // Folder selection
+  const handleSelectFolder = (id: string, checked: boolean) => {
+    setSelectedFolderIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const handleSelectAllFolders = (checked: boolean) => {
+    if (checked) {
+      setSelectedFolderIds(new Set(filteredFolders.map((f) => f.folder.id)));
     } else {
-      setSelectedItemIds(new Set(paginatedItems.map((item) => item.id)));
+      setSelectedFolderIds(new Set());
     }
   };
 
-  const handleSelectItem = (itemId: string) => {
-    const newSelected = new Set(selectedItemIds);
-    if (newSelected.has(itemId)) {
-      newSelected.delete(itemId);
-    } else {
-      newSelected.add(itemId);
-    }
-    setSelectedItemIds(newSelected);
-  };
-
-  const handleBulkRestore = () => {
-    const items = sortedItems.filter((item) => selectedItemIds.has(item.id));
-    setItemsToRestore(items);
-    setRestoreDialogOpen(true);
-  };
-
-  const handleBulkDelete = () => {
-    const items = sortedItems.filter((item) => selectedItemIds.has(item.id));
-    setItemsToDelete(items);
-    if (activeTab === 'folders') {
-      setDeleteFolderDialogOpen(true);
-    } else {
-      setDeleteFileDialogOpen(true);
-    }
-  };
-
-  const handleSingleRestore = (item: UnifiedTrashItem) => {
-    setItemsToRestore([item]);
-    setRestoreDialogOpen(true);
-  };
-
-  const handleSingleDelete = (item: UnifiedTrashItem) => {
-    setItemsToDelete([item]);
-    if (item.type === 'folder') {
-      setDeleteFolderDialogOpen(true);
-    } else {
-      setDeleteFileDialogOpen(true);
-    }
-  };
-
-  const handleEmptyTrash = () => {
-    setItemsToDelete(sortedItems);
-    setEmptyTrashDialogOpen(true);
-  };
-
-  const handleRestoreConfirm = async (newPath: string | null) => {
+  // Restore
+  const handleRestoreFile = async (fileId: string) => {
     try {
-      for (const item of itemsToRestore) {
-        if (item.type === 'file') {
-          await restoreFileMutation.mutateAsync({ fileId: item.id, newPath });
-        } else {
-          await restoreFolderMutation.mutateAsync(item.id);
+      await restoreFileMutation.mutateAsync({ fileId, targetFolderId: null });
+      toast.success('File restored');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to restore file';
+      toast.error(message);
+    }
+  };
+
+  const handleRestoreFolder = async (folderId: string) => {
+    try {
+      await restoreFolderMutation.mutateAsync({ folderId, targetParentId: null });
+      toast.success('Folder restored');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to restore folder';
+      toast.error(message);
+    }
+  };
+
+  // Delete
+  const confirmDelete = (ids: string[], type: 'file' | 'folder') => {
+    setPendingDeleteIds(ids);
+    setPendingDeleteType(type);
+    setConfirmDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    setConfirmDeleteOpen(false);
+    if (pendingDeleteType === 'file') {
+      for (const id of pendingDeleteIds) {
+        try {
+          await deleteFileMutation.mutateAsync(id);
+        } catch {
+          // continue
         }
       }
-      const itemType = itemsToRestore.length === 1 ? itemsToRestore[0].type : 'item';
-      toast.success(`${itemsToRestore.length} ${itemType}(s) restored successfully`);
-      setSelectedItemIds(new Set());
-      setRestoreDialogOpen(false);
-    } catch (error) {
-      toast.error('Failed to restore items');
-      console.error(error);
-    }
-  };
-
-  const handleDeleteFileConfirm = async (secureWipe: boolean) => {
-    try {
-      for (const item of itemsToDelete) {
-        if (item.type === 'file') {
-          await permanentlyDeleteFileMutation.mutateAsync({ fileId: item.id, secureWipe });
-        } else {
-          await permanentlyDeleteFolderMutation.mutateAsync(item.id);
+      toast.success(`Permanently deleted ${pendingDeleteIds.length} file(s)`);
+      setSelectedFileIds(new Set());
+    } else {
+      for (const id of pendingDeleteIds) {
+        try {
+          await deleteFolderMutation.mutateAsync(id);
+        } catch {
+          // continue
         }
       }
-      toast.success(`${itemsToDelete.length} item(s) permanently deleted`);
-      setSelectedItemIds(new Set());
-      setDeleteFileDialogOpen(false);
-      setEmptyTrashDialogOpen(false);
-    } catch (error) {
-      toast.error('Failed to delete items');
-      console.error(error);
+      toast.success(`Permanently deleted ${pendingDeleteIds.length} folder(s)`);
+      setSelectedFolderIds(new Set());
     }
+    setPendingDeleteIds([]);
   };
-
-  const handleDeleteFolderConfirm = async () => {
-    try {
-      for (const item of itemsToDelete) {
-        if (item.type === 'folder') {
-          await permanentlyDeleteFolderMutation.mutateAsync(item.id);
-        } else {
-          await permanentlyDeleteFileMutation.mutateAsync({ fileId: item.id, secureWipe: false });
-        }
-      }
-      toast.success(`${itemsToDelete.length} item(s) permanently deleted`);
-      setSelectedItemIds(new Set());
-      setDeleteFolderDialogOpen(false);
-    } catch (error) {
-      toast.error('Failed to delete items');
-      console.error(error);
-    }
-  };
-
-  const SortButton = ({
-    column,
-    children,
-  }: {
-    column: SortColumn;
-    children: React.ReactNode;
-  }) => (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="-ml-3 h-8 data-[state=open]:bg-accent"
-      onClick={() => handleSort(column)}
-    >
-      {children}
-      <ArrowUpDown className="ml-2 h-4 w-4" />
-    </Button>
-  );
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-6 max-w-7xl">
-        <div className="flex items-center justify-center h-96">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto mb-3" />
+          <p className="text-muted-foreground">Loading trash...</p>
         </div>
       </div>
     );
   }
 
-  // Build TrashItem arrays for dialogs that expect them
-  const trashItemsToDelete: TrashItem[] = itemsToDelete
-    .filter((i) => i.type === 'file' && i.fileData)
-    .map((i) => i.fileData!);
-
-  // Folder items to delete as UnifiedTrashItem[]
-  const folderItemsToDelete: UnifiedTrashItem[] = itemsToDelete.filter(
-    (i) => i.type === 'folder',
-  );
-
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Trash</h1>
-          <p className="text-muted-foreground">Manage deleted files and folders</p>
-        </div>
-        <Button
-          variant="destructive"
-          onClick={handleEmptyTrash}
-          disabled={sortedItems.length === 0}
-        >
-          <Trash2 className="mr-2 h-4 w-4" />
-          Empty Trash
-        </Button>
+    <div className="container mx-auto p-6 max-w-6xl">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <Trash2 className="w-6 h-6 text-destructive" />
+          Trash
+        </h1>
+        <p className="text-muted-foreground mt-1">
+          Files and folders moved to trash. They will be permanently deleted after the retention
+          period.
+        </p>
       </div>
 
-      {/* Horizontal row with filter buttons on left and storage indicator on right */}
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <div className="flex gap-2">
-          <Button
-            variant={activeTab === 'files' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('files')}
-            className={
-              activeTab === 'files'
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-zinc-700'
-            }
-          >
-            Files
-            {fileItems.length > 0 && (
-              <Badge
-                variant="secondary"
-                className={`ml-2 ${
-                  activeTab === 'files'
-                    ? 'bg-emerald-700 text-white'
-                    : 'bg-zinc-700 text-zinc-300'
-                }`}
-              >
-                {fileItems.length}
-              </Badge>
-            )}
-          </Button>
-          <Button
-            variant={activeTab === 'folders' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('folders')}
-            className={
-              activeTab === 'folders'
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-zinc-700'
-            }
-          >
-            Folders
-            {folderItems.length > 0 && (
-              <Badge
-                variant="secondary"
-                className={`ml-2 ${
-                  activeTab === 'folders'
-                    ? 'bg-emerald-700 text-white'
-                    : 'bg-zinc-700 text-zinc-300'
-                }`}
-              >
-                {folderItems.length}
-              </Badge>
-            )}
-          </Button>
-        </div>
-
-        <div className="shrink-0">
-          <TrashStorageIndicator />
-        </div>
+      {/* Search */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search trash..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full max-w-xs px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
       </div>
 
-      <div className="space-y-4">
-        {activeTab === 'files' && (
-          <TrashFilters
-            trashData={trashFiles || []}
-            onFilteredDataChange={handleFilteredDataChange}
-            isAdmin={isAdmin || false}
-            onOwnerFilterChange={setAdminOwnerFilter}
-          />
-        )}
+      <Tabs defaultValue="files">
+        <TabsList className="mb-4">
+          <TabsTrigger value="files">
+            Files ({filteredFiles.length})
+          </TabsTrigger>
+          <TabsTrigger value="folders">
+            Folders ({filteredFolders.length})
+          </TabsTrigger>
+        </TabsList>
 
-        {selectedItemIds.size > 0 && (
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">
-                {selectedItemIds.size} item(s) selected
-              </span>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={handleBulkRestore}>
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Restore
-                </Button>
-                <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
-                  <Trash2 className="mr-2 h-4 w-4" />
+        {/* Files Tab */}
+        <TabsContent value="files">
+          {selectedFileIds.size > 0 && (
+            <div className="flex items-center gap-2 p-2 bg-primary/5 rounded-lg border border-primary/20 mb-3">
+              <span className="text-sm font-medium">{selectedFileIds.size} selected</span>
+              <div className="flex gap-2 ml-auto">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-destructive"
+                  onClick={() => confirmDelete(Array.from(selectedFileIds), 'file')}
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
                   Delete Permanently
                 </Button>
               </div>
             </div>
-          </Card>
-        )}
+          )}
 
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12">
-                  <Checkbox
-                    checked={
-                      selectedItemIds.size === paginatedItems.length &&
-                      paginatedItems.length > 0
-                    }
-                    onCheckedChange={handleSelectAll}
-                  />
-                </TableHead>
-                <TableHead>
-                  <SortButton column="name">Name</SortButton>
-                </TableHead>
-                <TableHead>
-                  <SortButton column="deletedAt">Deleted</SortButton>
-                </TableHead>
-                <TableHead>Expiry Date</TableHead>
-                <TableHead>
-                  <SortButton column="size">Size</SortButton>
-                </TableHead>
-                <TableHead>Original Path</TableHead>
-                {isAdmin && (
-                  <TableHead>
-                    <SortButton column="owner">Owner</SortButton>
-                  </TableHead>
-                )}
-                <TableHead className="w-12">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedItems.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={isAdmin ? 8 : 7}
-                    className="text-center py-12 text-muted-foreground"
-                  >
-                    {activeTab === 'files' ? 'No files in trash' : 'No folders in trash'}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                paginatedItems.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>
+          {filteredFiles.length === 0 ? (
+            <div className="text-center py-16">
+              <Trash2 className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-muted-foreground font-medium">No files in trash</p>
+            </div>
+          ) : (
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10">
                       <Checkbox
-                        checked={selectedItemIds.has(item.id)}
-                        onCheckedChange={() => handleSelectItem(item.id)}
+                        checked={
+                          filteredFiles.length > 0 &&
+                          filteredFiles.every((f) => selectedFileIds.has(f.fileId))
+                        }
+                        onCheckedChange={handleSelectAllFiles}
                       />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {getItemIcon(item)}
-                        <span className="font-medium truncate max-w-[200px]">{item.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {formatDate(item.deletedAt)}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {calculateExpiryDate(item.deletedAt, item.retentionPeriod)}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {formatSize(item.size)}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground truncate max-w-[150px]">
-                      {item.originalPath}
-                    </TableCell>
-                    {isAdmin && (
-                      <TableCell className="text-sm text-muted-foreground">
-                        {item.owner.toString().slice(0, 10)}…
-                      </TableCell>
-                    )}
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleSingleRestore(item)}>
-                            <RotateCcw className="mr-2 h-4 w-4" />
-                            Restore
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={() => handleSingleDelete(item)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete Permanently
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+                    </TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead className="hidden md:table-cell">Size</TableHead>
+                    <TableHead className="hidden lg:table-cell">Deleted</TableHead>
+                    <TableHead className="hidden lg:table-cell">Expires</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {paginatedFiles.map((item) => (
+                    <TableRow key={item.fileId}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedFileIds.has(item.fileId)}
+                          onCheckedChange={(checked) =>
+                            handleSelectFile(item.fileId, !!checked)
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                          <span className="text-sm font-medium truncate max-w-[200px]">
+                            {item.metadata.name}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                        {formatFileSize(item.metadata.size)}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                        {formatDate(item.deletedAt)}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                        {formatDate(item.deletedAt + item.retentionPeriod)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7">
+                              <MoreVertical className="w-3.5 h-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => handleRestoreFile(item.fileId)}
+                              disabled={restoreFileMutation.isPending}
+                            >
+                              <RotateCcw className="w-4 h-4 mr-2" />
+                              Restore
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => confirmDelete([item.fileId], 'file')}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete Permanently
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
+        </TabsContent>
 
-        <PaginationControls
-          currentPage={activePagination.currentPage}
-          totalItems={sortedItems.length}
-          itemsPerPage={activePagination.itemsPerPage}
-          onPageChange={activePagination.setPage}
-          onItemsPerPageChange={activePagination.setItemsPerPage}
-        />
-      </div>
+        {/* Folders Tab */}
+        <TabsContent value="folders">
+          {selectedFolderIds.size > 0 && (
+            <div className="flex items-center gap-2 p-2 bg-primary/5 rounded-lg border border-primary/20 mb-3">
+              <span className="text-sm font-medium">{selectedFolderIds.size} selected</span>
+              <div className="flex gap-2 ml-auto">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-destructive"
+                  onClick={() => confirmDelete(Array.from(selectedFolderIds), 'folder')}
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
+                  Delete Permanently
+                </Button>
+              </div>
+            </div>
+          )}
 
-      {/* Dialogs — use correct prop names from each component's interface */}
-      <RestoreDialog
-        open={restoreDialogOpen}
-        onOpenChange={setRestoreDialogOpen}
-        selectedItems={itemsToRestore}
-        onRestore={handleRestoreConfirm}
-      />
+          {filteredFolders.length === 0 ? (
+            <div className="text-center py-16">
+              <FolderIcon className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-muted-foreground font-medium">No folders in trash</p>
+            </div>
+          ) : (
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={
+                          filteredFolders.length > 0 &&
+                          filteredFolders.every((f) => selectedFolderIds.has(f.folder.id))
+                        }
+                        onCheckedChange={handleSelectAllFolders}
+                      />
+                    </TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead className="hidden md:table-cell">Original Path</TableHead>
+                    <TableHead className="hidden lg:table-cell">Deleted</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedFolders.map((item) => (
+                    <TableRow key={item.folder.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedFolderIds.has(item.folder.id)}
+                          onCheckedChange={(checked) =>
+                            handleSelectFolder(item.folder.id, !!checked)
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <FolderIcon className="w-4 h-4 text-amber-500 shrink-0" />
+                          <span className="text-sm font-medium truncate max-w-[200px]">
+                            {item.folder.name}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                        {item.originalPath}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                        {formatDate(item.deletedAt)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7">
+                              <MoreVertical className="w-3.5 h-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => handleRestoreFolder(item.folder.id)}
+                              disabled={restoreFolderMutation.isPending}
+                            >
+                              <RotateCcw className="w-4 h-4 mr-2" />
+                              Restore
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => confirmDelete([item.folder.id], 'folder')}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete Permanently
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
 
-      <DeleteConfirmationDialog
-        open={deleteFileDialogOpen || emptyTrashDialogOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDeleteFileDialogOpen(false);
-            setEmptyTrashDialogOpen(false);
-          }
-        }}
-        selectedItems={trashItemsToDelete}
-        onConfirm={handleDeleteFileConfirm}
-        isEmptyTrash={emptyTrashDialogOpen}
-      />
-
-      <DeleteFolderConfirmationDialog
-        open={deleteFolderDialogOpen}
-        onOpenChange={setDeleteFolderDialogOpen}
-        selectedItems={folderItemsToDelete}
-        onConfirm={handleDeleteFolderConfirm}
-      />
+      {/* Confirm Delete Dialog */}
+      <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              Permanently Delete?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {pendingDeleteIds.length}{' '}
+              {pendingDeleteType === 'file' ? 'file' : 'folder'}
+              {pendingDeleteIds.length !== 1 ? 's' : ''}. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+            >
+              Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

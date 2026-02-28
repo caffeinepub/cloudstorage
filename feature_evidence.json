@@ -2,10 +2,13 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-add-five-new-bulk-action-icon-buttons-to-the-selection-bulk-action-bar-in-filelist-tsx-placed-immediately-after-the-deselect-all-button-the-five-buttons-are-1-download-all-2-favorites-all-3-shared-all-4-move-all-5-delete-all-all-five-buttons-must-be-hidden-when-only-1-file-is-selected-and-must-only-appear-when-2-or-more-files-are-selected",
-      "featureTitle": "Add five new bulk action icon buttons to the Selection Bulk Action bar in FileList.tsx, placed immediately after the 'Deselect All' button. The five buttons are: (1) Download All, (2) Favorites All, (3) Shared All, (4) Move All, (5) Delete All. All five buttons must be hidden when only 1 file is selected and must only appear when 2 or more files are selected.",
+      "featureId": "feature-after-a-user-logs-in-via-internet-identity-check-their-registration-status-if-their-status-is-pending-display-a-full-screen-waiting-screen-informing-them-that-their-account-is-awaiting-admin-approval-if-their-status-is-rejected-display-a-full-screen-rejection-notice-if-their-status-is-active-or-superadmin-allow-normal-app-access-if-they-are-new-not-yet-registered-register-them-and-then-route-based-on-the-assigned-status",
+      "featureTitle": "After a user logs in via Internet Identity, check their registration status. If their status is Pending, display a full-screen waiting screen informing them that their account is awaiting admin approval. If their status is Rejected, display a full-screen rejection notice. If their status is Active or SuperAdmin, allow normal app access. If they are new (not yet registered), register them and then route based on the assigned status.",
       "files": [
-        "frontend/src/components/FileList.tsx"
+        "frontend/src/App.tsx",
+        "frontend/src/hooks/useQueries.ts",
+        "frontend/src/pages/PendingApprovalPage.tsx",
+        "frontend/src/pages/RejectedPage.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -14,27 +17,8 @@
         "shadcn-ui@1.0.0",
         "build-template-react@1.0.0",
         "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-1"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-implement-the-download-all-bulk-action-when-the-user-clicks-download-all-with-2-files-selected-trigger-a-download-of-each-selected-file-to-the-user-s-device-using-the-existing-file-retrieval-mechanism-similar-to-the-single-file-download-in-filepreview-tsx",
-      "featureTitle": "Implement the 'Download All' bulk action: when the user clicks Download All with 2+ files selected, trigger a download of each selected file to the user's device using the existing file retrieval mechanism (similar to the single-file download in FilePreview.tsx).",
-      "files": [
-        "frontend/src/components/FileList.tsx"
-      ],
-      "components": [
-        "authorization@4.0.0",
-        "blob-storage@4.0.0",
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0"
+        "github-export-icp-cli@1.0.0",
+        "user-approval@3.0.0"
       ],
       "testIds": [
         "REQ-2"
@@ -42,10 +26,13 @@
       "confidence": "high"
     },
     {
-      "featureId": "feature-implement-the-favorites-all-bulk-action-when-the-user-clicks-favorites-all-with-2-files-selected-add-all-selected-files-to-the-favorites-section-using-the-existing-favorites-mutation-hook-useaddtofavorites-or-equivalent-from-usequeries-ts",
-      "featureTitle": "Implement the 'Favorites All' bulk action: when the user clicks Favorites All with 2+ files selected, add all selected files to the Favorites section using the existing favorites mutation hook (useAddToFavorites or equivalent from useQueries.ts).",
+      "featureId": "feature-add-a-basic-admin-panel-page-accessible-only-to-the-superadmin-this-page-must-display-a-table-of-all-registered-users-showing-their-principal-id-display-name-if-set-and-current-status-the-superadmin-must-be-able-to-approve-or-reject-each-pending-user-directly-from-this-table-using-action-buttons",
+      "featureTitle": "Add a basic Admin Panel page accessible only to the SuperAdmin. This page must display a table of all registered users showing their principal ID, display name (if set), and current status. The SuperAdmin must be able to approve or reject each Pending user directly from this table using action buttons.",
       "files": [
-        "frontend/src/components/FileList.tsx"
+        "frontend/src/App.tsx",
+        "frontend/src/components/Sidebar.tsx",
+        "frontend/src/hooks/useQueries.ts",
+        "frontend/src/pages/AdminPanel.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -54,72 +41,11 @@
         "shadcn-ui@1.0.0",
         "build-template-react@1.0.0",
         "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0"
+        "github-export-icp-cli@1.0.0",
+        "user-approval@3.0.0"
       ],
       "testIds": [
         "REQ-3"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-implement-the-shared-all-bulk-action-when-the-user-clicks-shared-all-with-2-files-selected-move-or-mark-all-selected-files-as-shared-using-the-existing-share-mutation-hooks-from-usequeries-ts-if-sharing-requires-a-recipient-or-permission-selection-open-a-minimal-dialog-to-collect-the-required-input",
-      "featureTitle": "Implement the 'Shared All' bulk action: when the user clicks Shared All with 2+ files selected, move or mark all selected files as shared using the existing share mutation hooks from useQueries.ts. If sharing requires a recipient or permission selection, open a minimal dialog to collect the required input.",
-      "files": [
-        "frontend/src/components/BulkShareDialog.tsx",
-        "frontend/src/components/FileList.tsx"
-      ],
-      "components": [
-        "authorization@4.0.0",
-        "blob-storage@4.0.0",
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-4"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-implement-the-move-all-bulk-action-when-the-user-clicks-move-all-with-2-files-selected-open-the-existing-movetofolderdialog-or-equivalent-configured-to-move-all-selected-files-to-a-chosen-destination-folder-using-the-usemovefilestofolder-mutation",
-      "featureTitle": "Implement the 'Move All' bulk action: when the user clicks Move All with 2+ files selected, open the existing MoveToFolderDialog (or equivalent) configured to move all selected files to a chosen destination folder using the useMoveFilesToFolder mutation.",
-      "files": [
-        "frontend/src/components/FileList.tsx"
-      ],
-      "components": [
-        "authorization@4.0.0",
-        "blob-storage@4.0.0",
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-5"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-implement-the-delete-all-bulk-action-when-the-user-clicks-delete-all-with-2-files-selected-open-a-confirmation-dialog-reusing-or-extending-deletefiledialog-deleteconfirmationdialog-and-upon-confirmation-delete-all-selected-files-at-once-using-the-existing-delete-mutation-hooks",
-      "featureTitle": "Implement the 'Delete All' bulk action: when the user clicks Delete All with 2+ files selected, open a confirmation dialog (reusing or extending DeleteFileDialog/DeleteConfirmationDialog) and upon confirmation, delete all selected files at once using the existing delete mutation hooks.",
-      "files": [
-        "frontend/src/components/BulkDeleteDialog.tsx",
-        "frontend/src/components/FileList.tsx"
-      ],
-      "components": [
-        "authorization@4.0.0",
-        "blob-storage@4.0.0",
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-6"
       ],
       "confidence": "high"
     }

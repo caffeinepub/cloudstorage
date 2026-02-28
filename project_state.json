@@ -1,59 +1,30 @@
 {
   "schemaVersion": "1.0.0",
   "projectStateVersion": 3,
-  "summary": "A file manager app with folder protection, bulk action bar enhancements, and per-file action menus.",
+  "summary": "Secure Access Control & Approval-Based Registration System for CloudStorage. Features: Internet Identity authentication, auto Super Admin promotion for first user, Pending Approval flow for subsequent users, Admin Dashboard with Role & Access Management and User Management tabs, RBAC permission matrix, detailed audit logs, configurable storage quotas. Currently attempting simplified Step 1: User Registration with Pending Approval (Internet Identity login, first user becomes Super Admin, pending status for others, basic admin approval panel).",
   "architectural_notes": [
-    "Bulk action icons (Download All, Favorites All, Shared All, Move All, Delete All) only appear when 2 or more files are selected",
-    "Per-file three-dot menu retains: Preview, Rename, Move, Add to Favorites, Delete"
+    "Build is failing repeatedly — breaking into Step 1 first: login + pending approval + basic admin panel, then adding RBAC/audit/quota in later steps",
+    "Authentication via Internet Identity (passkey, Google, Apple, Microsoft)",
+    "First registered user auto-promoted to Super Admin (one-time only); all others start as Pending"
   ],
-  "known_issues": [],
+  "known_issues": [
+    "Repeated AI build failures when attempting full-scope build — simplifying to incremental steps"
+  ],
   "isFixRequest": false,
   "existing_features": [
     {
-      "id": "feature-add-five-new-bulk-action-icon-buttons-to-the-selection-bulk-action-bar-in-filelist-tsx-placed-immediately-after-the-deselect-all-button-the-five-buttons-are-1-download-all-2-favorites-all-3-shared-all-4-move-all-5-delete-all-all-five-buttons-must-be-hidden-when-only-1-file-is-selected-and-must-only-appear-when-2-or-more-files-are-selected",
-      "title": "Add five new bulk action icon buttons to the Selection Bulk Action bar in FileList.tsx, placed immediately after the 'Deselect All' button. The five buttons are: (1) Download All, (2) Favorites All, (3) Shared All, (4) Move All, (5) Delete All. All five buttons must be hidden when only 1 file is selected and must only appear when 2 or more files are selected.",
-      "reqIds": [
-        "REQ-1"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-implement-the-download-all-bulk-action-when-the-user-clicks-download-all-with-2-files-selected-trigger-a-download-of-each-selected-file-to-the-user-s-device-using-the-existing-file-retrieval-mechanism-similar-to-the-single-file-download-in-filepreview-tsx",
-      "title": "Implement the 'Download All' bulk action: when the user clicks Download All with 2+ files selected, trigger a download of each selected file to the user's device using the existing file retrieval mechanism (similar to the single-file download in FilePreview.tsx).",
+      "id": "feature-after-a-user-logs-in-via-internet-identity-check-their-registration-status-if-their-status-is-pending-display-a-full-screen-waiting-screen-informing-them-that-their-account-is-awaiting-admin-approval-if-their-status-is-rejected-display-a-full-screen-rejection-notice-if-their-status-is-active-or-superadmin-allow-normal-app-access-if-they-are-new-not-yet-registered-register-them-and-then-route-based-on-the-assigned-status",
+      "title": "After a user logs in via Internet Identity, check their registration status. If their status is Pending, display a full-screen waiting screen informing them that their account is awaiting admin approval. If their status is Rejected, display a full-screen rejection notice. If their status is Active or SuperAdmin, allow normal app access. If they are new (not yet registered), register them and then route based on the assigned status.",
       "reqIds": [
         "REQ-2"
       ],
       "version": 1
     },
     {
-      "id": "feature-implement-the-favorites-all-bulk-action-when-the-user-clicks-favorites-all-with-2-files-selected-add-all-selected-files-to-the-favorites-section-using-the-existing-favorites-mutation-hook-useaddtofavorites-or-equivalent-from-usequeries-ts",
-      "title": "Implement the 'Favorites All' bulk action: when the user clicks Favorites All with 2+ files selected, add all selected files to the Favorites section using the existing favorites mutation hook (useAddToFavorites or equivalent from useQueries.ts).",
+      "id": "feature-add-a-basic-admin-panel-page-accessible-only-to-the-superadmin-this-page-must-display-a-table-of-all-registered-users-showing-their-principal-id-display-name-if-set-and-current-status-the-superadmin-must-be-able-to-approve-or-reject-each-pending-user-directly-from-this-table-using-action-buttons",
+      "title": "Add a basic Admin Panel page accessible only to the SuperAdmin. This page must display a table of all registered users showing their principal ID, display name (if set), and current status. The SuperAdmin must be able to approve or reject each Pending user directly from this table using action buttons.",
       "reqIds": [
         "REQ-3"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-implement-the-shared-all-bulk-action-when-the-user-clicks-shared-all-with-2-files-selected-move-or-mark-all-selected-files-as-shared-using-the-existing-share-mutation-hooks-from-usequeries-ts-if-sharing-requires-a-recipient-or-permission-selection-open-a-minimal-dialog-to-collect-the-required-input",
-      "title": "Implement the 'Shared All' bulk action: when the user clicks Shared All with 2+ files selected, move or mark all selected files as shared using the existing share mutation hooks from useQueries.ts. If sharing requires a recipient or permission selection, open a minimal dialog to collect the required input.",
-      "reqIds": [
-        "REQ-4"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-implement-the-move-all-bulk-action-when-the-user-clicks-move-all-with-2-files-selected-open-the-existing-movetofolderdialog-or-equivalent-configured-to-move-all-selected-files-to-a-chosen-destination-folder-using-the-usemovefilestofolder-mutation",
-      "title": "Implement the 'Move All' bulk action: when the user clicks Move All with 2+ files selected, open the existing MoveToFolderDialog (or equivalent) configured to move all selected files to a chosen destination folder using the useMoveFilesToFolder mutation.",
-      "reqIds": [
-        "REQ-5"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-implement-the-delete-all-bulk-action-when-the-user-clicks-delete-all-with-2-files-selected-open-a-confirmation-dialog-reusing-or-extending-deletefiledialog-deleteconfirmationdialog-and-upon-confirmation-delete-all-selected-files-at-once-using-the-existing-delete-mutation-hooks",
-      "title": "Implement the 'Delete All' bulk action: when the user clicks Delete All with 2+ files selected, open a confirmation dialog (reusing or extending DeleteFileDialog/DeleteConfirmationDialog) and upon confirmation, delete all selected files at once using the existing delete mutation hooks.",
-      "reqIds": [
-        "REQ-6"
       ],
       "version": 1
     }
@@ -61,13 +32,57 @@
   "new_feature_requests": [
     {
       "id": "AR-1",
-      "summary": "Add 5 bulk action icons (Download All, Favorites All, Shared All, Move All, Delete All) to the Selection Bulk Action bar, visible only when 2+ files are selected, placed after Deselect All icon",
+      "summary": "Internet Identity authentication (passkey, Google, Apple, Microsoft sign-in)",
       "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-2",
+      "summary": "Auto Super Admin promotion for the first registered/verified user (only once)",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-3",
+      "summary": "Pending Approval registration flow — all subsequent users wait for admin approval before login",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-4",
+      "summary": "Admin Dashboard: Role & Access Management tab — create/manage roles (Super Admin, Admin, Manager, User, Custom), RBAC permission matrix, privilege escalation protection, confirmation modals",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-5",
+      "summary": "Admin Dashboard: User Management tab — full user table with filters (Pending/Active/Suspended/Rejected), approve/reject, assign roles & storage quotas (GB), suspend/deactivate, search & sort, role badges",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-6",
+      "summary": "Detailed audit log with before/after values for every key action (approvals, role changes, promotions, quota changes) including timestamp and actor",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-7",
+      "summary": "Configurable storage quotas (GB) per user — displayed and assigned via admin dashboard",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-8",
+      "summary": "Add a user registration status system to the backend. Each registered principal must have a status field with possible values: SuperAdmin, Active, Pending, Rejected, Suspended. When the very first user logs in and registers, automatically assign them SuperAdmin status. All subsequent users who log in for the first time must be assigned Pending status.",
+      "reqIds": [
+        "REQ-1"
+      ],
       "status": "pending"
     }
   ],
   "gameProjectType": "none",
-  "projectName": "Cloud File Manager",
+  "projectName": "CloudStorage",
   "clarification_mode": "instant",
   "clarification_rounds": 0
 }

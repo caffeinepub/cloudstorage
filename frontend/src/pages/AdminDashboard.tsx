@@ -1,18 +1,23 @@
 import { useIsCallerAdmin } from '../hooks/useQueries';
+import { useActor } from '../hooks/useActor';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, HardDrive, Activity, Shield } from 'lucide-react';
 import UserStorageManager from '../components/UserStorageManager';
 import ActivityFeed from '../components/ActivityFeed';
 
 export default function AdminDashboard() {
-  const { data: isAdmin, isLoading } = useIsCallerAdmin();
+  const { isFetching: actorFetching } = useActor();
+  const { data: isAdmin, isLoading: adminLoading, isFetched } = useIsCallerAdmin();
+
+  // Show loading while actor is initializing or admin check is in progress
+  const isLoading = actorFetching || adminLoading || !isFetched;
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground">Checking permissions...</p>
         </div>
       </div>
     );

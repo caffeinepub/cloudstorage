@@ -1,168 +1,138 @@
+import React, { useState } from 'react';
 import { useListAllUsersStorage, useSetUserQuota } from '../hooks/useQueries';
-import { Card } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { HardDrive, Edit2, Check, X, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useState } from 'react';
-import { toast } from 'sonner';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
-import { Edit2 } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
+import { toast } from 'sonner';
 
 export default function UserStorageManager() {
-  const { data: usersStorage, isLoading } = useListAllUsersStorage();
-  const setUserQuota = useSetUserQuota();
-  const [editingUser, setEditingUser] = useState<Principal | null>(null);
-  const [newQuota, setNewQuota] = useState('');
+  const { data: usersStorage, isLoading, isError } = useListAllUsersStorage();
+  const setQuotaMutation = useSetUserQuota();
+  const [editingUser, setEditingUser] = useState<string | null>(null);
+  const [newQuotaGB, setNewQuotaGB] = useState('');
 
-  const handleSetQuota = async (userPrincipal: Principal) => {
-    const quotaMB = parseFloat(newQuota);
-    if (isNaN(quotaMB) || quotaMB <= 0) {
-      toast.error('Please enter a valid quota in MB');
+  const handleEditStart = (userPrincipal: string, currentTotalBytes: bigint) => {
+    setEditingUser(userPrincipal);
+    setNewQuotaGB((Number(currentTotalBytes) / (1024 * 1024 * 1024)).toFixed(1));
+  };
+
+  const handleEditSave = async (userPrincipal: string) => {
+    const gb = parseFloat(newQuotaGB);
+    if (isNaN(gb) || gb <= 0) {
+      toast.error('Please enter a valid quota in GB');
       return;
     }
-
     try {
-      const quotaBytes = BigInt(Math.floor(quotaMB * 1024 * 1024));
-      await setUserQuota.mutateAsync({ user: userPrincipal, quota: quotaBytes });
-      toast.success('Quota updated successfully');
+      await setQuotaMutation.mutateAsync({
+        user: Principal.fromText(userPrincipal),
+        quota: BigInt(Math.round(gb * 1024 * 1024 * 1024)),
+      });
+      toast.success('Storage quota updated');
       setEditingUser(null);
-      setNewQuota('');
-    } catch (error) {
-      toast.error('Failed to update quota');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to update quota';
+      toast.error(message);
     }
+  };
+
+  const handleEditCancel = () => {
+    setEditingUser(null);
+    setNewQuotaGB('');
   };
 
   if (isLoading) {
     return (
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">User Storage Management</h3>
-        <div className="flex items-center justify-center h-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      </Card>
+      <div className="space-y-3">
+        {[...Array(3)].map((_, i) => (
+          <Skeleton key={i} className="h-16 w-full rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+        <AlertTriangle className="w-4 h-4 text-amber-500" />
+        Failed to load user storage data
+      </div>
     );
   }
 
   if (!usersStorage || usersStorage.length === 0) {
     return (
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">User Storage Management</h3>
-        <p className="text-center text-muted-foreground py-8">No users found</p>
-      </Card>
+      <div className="text-center py-8">
+        <HardDrive className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground">No user storage data available</p>
+      </div>
     );
   }
 
   return (
-    <>
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">User Storage Management</h3>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>User</TableHead>
-              <TableHead>Used</TableHead>
-              <TableHead>Quota</TableHead>
-              <TableHead>Usage</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {usersStorage.map(([principal, used, quota]) => {
-              const usedMB = Number(used) / (1024 * 1024);
-              const quotaMB = Number(quota) / (1024 * 1024);
-              const percentage = quotaMB > 0 ? (usedMB / quotaMB) * 100 : 0;
-              const principalStr = principal.toString();
+    <div className="space-y-3">
+      {usersStorage.map((entry) => {
+        const principalStr = entry.user.toString();
+        const usedGB = (Number(entry.used) / (1024 * 1024 * 1024)).toFixed(2);
+        const totalGB = (Number(entry.total) / (1024 * 1024 * 1024)).toFixed(1);
+        const isEditing = editingUser === principalStr;
 
-              return (
-                <TableRow key={principalStr}>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">User</p>
-                      <p className="text-xs text-muted-foreground truncate max-w-[200px]">
-                        {principalStr}
-                      </p>
-                    </div>
-                  </TableCell>
-                  <TableCell>{usedMB.toFixed(2)} MB</TableCell>
-                  <TableCell>{quotaMB.toFixed(2)} MB</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Progress value={percentage} className="h-2 w-24" />
-                      <span className="text-xs text-muted-foreground">
-                        {percentage.toFixed(0)}%
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setEditingUser(principal);
-                        setNewQuota(quotaMB.toString());
-                      }}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </Card>
-
-      <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Set User Quota</DialogTitle>
-            <DialogDescription>
-              Enter the new storage quota for this user in megabytes (MB)
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="quota">Quota (MB)</Label>
-              <Input
-                id="quota"
-                type="number"
-                value={newQuota}
-                onChange={(e) => setNewQuota(e.target.value)}
-                placeholder="100"
-                min="1"
-              />
+        return (
+          <div key={principalStr} className="p-3 rounded-lg border border-border bg-card">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-mono text-muted-foreground truncate max-w-[200px]">
+                {principalStr.slice(0, 20)}...
+              </p>
+              {isEditing ? (
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number"
+                    value={newQuotaGB}
+                    onChange={(e) => setNewQuotaGB(e.target.value)}
+                    className="h-7 w-20 text-xs"
+                    placeholder="GB"
+                    min="0.1"
+                    step="0.1"
+                  />
+                  <span className="text-xs text-muted-foreground">GB</span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    onClick={() => handleEditSave(principalStr)}
+                    disabled={setQuotaMutation.isPending}
+                  >
+                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    onClick={handleEditCancel}
+                  >
+                    <X className="w-3.5 h-3.5 text-destructive" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7"
+                  onClick={() => handleEditStart(principalStr, entry.total)}
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                </Button>
+              )}
             </div>
+            <Progress value={entry.percentage} className="h-1.5 mb-1" />
+            <p className="text-xs text-muted-foreground">
+              {usedGB} GB used of {totalGB} GB ({entry.percentage.toFixed(1)}%)
+            </p>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingUser(null)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => editingUser && handleSetQuota(editingUser)}
-              disabled={setUserQuota.isPending}
-            >
-              {setUserQuota.isPending ? 'Updating...' : 'Update Quota'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+        );
+      })}
+    </div>
   );
 }

@@ -1,101 +1,137 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { createRootRoute, createRoute, createRouter, RouterProvider, Outlet } from '@tanstack/react-router';
+import React, { useEffect, useState } from 'react';
+import {
+  createRouter,
+  createRoute,
+  createRootRoute,
+  RouterProvider,
+  Outlet,
+} from '@tanstack/react-router';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { ThemeProvider } from 'next-themes';
-import { Toaster } from '@/components/ui/sonner';
 import { useInternetIdentity } from './hooks/useInternetIdentity';
 import { useActor } from './hooks/useActor';
+import { useGetCallerUserProfile, useIsCallerApproved, useIsCallerAdmin } from './hooks/useQueries';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
-import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
+import Home from './pages/Home';
+import Recent from './pages/Recent';
+import Shared from './pages/Shared';
 import Trash from './pages/Trash';
 import Settings from './pages/Settings';
-import Shared from './pages/Shared';
-import Recent from './pages/Recent';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminPanel from './pages/AdminPanel';
+import Favorites from './pages/Favorites';
 import ProfileSetup from './components/ProfileSetup';
 import ConnectionError from './components/ConnectionError';
-import ErrorBoundary from './components/ErrorBoundary';
-import { useGetCallerUserProfile } from './hooks/useQueries';
+import PendingApprovalPage from './pages/PendingApprovalPage';
+import RejectedPage from './pages/RejectedPage';
+import { Toaster } from '@/components/ui/sonner';
+import { ThemeProvider } from 'next-themes';
 import { RecentUploadsProvider } from './contexts/RecentUploadsContext';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 2,
-      staleTime: 2 * 60 * 1000,
+      staleTime: 30_000,
     },
   },
 });
 
-// ── Routes ──────────────────────────────────────────────────────────────────
-
+// Root route
 const rootRoute = createRootRoute({
-  component: () => (
-    <ErrorBoundary>
-      <AppShell />
-    </ErrorBoundary>
-  ),
+  component: () => <Outlet />,
 });
 
+// Login route
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/login',
+  component: LoginPage,
+});
+
+// Layout route (authenticated)
 const layoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'layout',
   component: Layout,
 });
 
+// Home route
 const homeRoute = createRoute({
   getParentRoute: () => layoutRoute,
   path: '/',
   component: Home,
 });
 
+// Dashboard route
 const dashboardRoute = createRoute({
   getParentRoute: () => layoutRoute,
   path: '/dashboard',
   component: Dashboard,
 });
 
-const trashRoute = createRoute({
+// Favorites route
+const favoritesRoute = createRoute({
   getParentRoute: () => layoutRoute,
-  path: '/trash',
-  component: Trash,
+  path: '/favorites',
+  component: Favorites,
 });
 
-const settingsRoute = createRoute({
-  getParentRoute: () => layoutRoute,
-  path: '/settings',
-  component: Settings,
-});
-
-const sharedRoute = createRoute({
-  getParentRoute: () => layoutRoute,
-  path: '/shared',
-  component: Shared,
-});
-
+// Recent route
 const recentRoute = createRoute({
   getParentRoute: () => layoutRoute,
   path: '/recent',
   component: Recent,
 });
 
+// Shared route
+const sharedRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: '/shared',
+  component: Shared,
+});
+
+// Trash route
+const trashRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: '/trash',
+  component: Trash,
+});
+
+// Settings route
+const settingsRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: '/settings',
+  component: Settings,
+});
+
+// Admin route
 const adminRoute = createRoute({
   getParentRoute: () => layoutRoute,
   path: '/admin',
   component: AdminDashboard,
 });
 
+// Admin Panel route
+const adminPanelRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: '/admin-panel',
+  component: AdminPanel,
+});
+
 const routeTree = rootRoute.addChildren([
+  loginRoute,
   layoutRoute.addChildren([
     homeRoute,
     dashboardRoute,
+    favoritesRoute,
+    recentRoute,
+    sharedRoute,
     trashRoute,
     settingsRoute,
-    sharedRoute,
-    recentRoute,
     adminRoute,
+    adminPanelRoute,
   ]),
 ]);
 
@@ -107,20 +143,17 @@ declare module '@tanstack/react-router' {
   }
 }
 
-// ── Connection timeout threshold ─────────────────────────────────────────────
-const CONNECTION_TIMEOUT_MS = 15000; // 15 seconds
+// Connection timeout threshold in ms
+const CONNECTION_TIMEOUT_MS = 15_000;
 
-// ── AppShell ─────────────────────────────────────────────────────────────────
-
-function AppShell() {
-  const { identity, isInitializing } = useInternetIdentity();
-  const { isFetching: actorFetching, actor } = useActor();
-  const qc = useQueryClient();
+function AppContent() {
+  const { identity, isInitializing: identityInitializing } = useInternetIdentity();
+  const { isFetching: actorFetching } = useActor();
+  const queryClient = useQueryClient();
   const isAuthenticated = !!identity;
 
-  // Timeout state for actor connection
   const [connectionTimedOut, setConnectionTimedOut] = useState(false);
-  const [retryKey, setRetryKey] = useState(0);
+  const [showProfileSetup, setShowProfileSetup] = useState(false);
 
   const {
     data: userProfile,
@@ -128,40 +161,55 @@ function AppShell() {
     isFetched: profileFetched,
   } = useGetCallerUserProfile();
 
-  const handleProfileSaved = () => {
-    qc.invalidateQueries({ queryKey: ['currentUserProfile'] });
-  };
+  const {
+    data: isApproved,
+    isLoading: approvalLoading,
+    isFetched: approvalFetched,
+  } = useIsCallerApproved();
 
-  // Start a timeout whenever the actor is still fetching
+  const {
+    data: isAdmin,
+    isLoading: adminLoading,
+    isFetched: adminFetched,
+  } = useIsCallerAdmin();
+
+  // Hard timeout on actor connection
   useEffect(() => {
-    // If actor is already available or not fetching, clear any timeout state
-    if (!actorFetching || actor) {
+    if (!actorFetching) {
       setConnectionTimedOut(false);
       return;
     }
-
     const timer = setTimeout(() => {
-      setConnectionTimedOut(true);
+      if (actorFetching) setConnectionTimedOut(true);
     }, CONNECTION_TIMEOUT_MS);
-
     return () => clearTimeout(timer);
-  }, [actorFetching, actor, retryKey]);
+  }, [actorFetching]);
 
-  const handleRetry = useCallback(() => {
+  // Show profile setup for new users
+  useEffect(() => {
+    if (isAuthenticated && !profileLoading && profileFetched && userProfile === null) {
+      setShowProfileSetup(true);
+    } else if (userProfile !== null && userProfile !== undefined) {
+      setShowProfileSetup(false);
+    }
+  }, [isAuthenticated, profileLoading, profileFetched, userProfile]);
+
+  const handleRetryConnection = () => {
     setConnectionTimedOut(false);
-    setRetryKey((k) => k + 1);
-    // Invalidate the actor query so it refetches
-    qc.invalidateQueries({ queryKey: ['actor'] });
-    qc.refetchQueries({ queryKey: ['actor'] });
-  }, [qc]);
+    queryClient.invalidateQueries({ queryKey: ['actor'] });
+    queryClient.refetchQueries({ queryKey: ['actor'] });
+  };
 
-  // Only block on the very first identity initialization
-  if (isInitializing) {
+  if (connectionTimedOut) {
+    return <ConnectionError onRetry={handleRetryConnection} />;
+  }
+
+  if (identityInitializing || actorFetching) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-          <p className="text-sm text-muted-foreground">Initializing…</p>
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground text-sm">Connecting to the network...</p>
         </div>
       </div>
     );
@@ -171,44 +219,53 @@ function AppShell() {
     return <LoginPage />;
   }
 
-  // Show connection error if timed out
-  if (connectionTimedOut) {
-    return <ConnectionError onRetry={handleRetry} />;
+  if (showProfileSetup) {
+    return (
+      <ProfileSetup
+        onProfileSaved={() => setShowProfileSetup(false)}
+      />
+    );
   }
 
-  // Actor is still being set up — show a lightweight spinner (with timeout protection above)
-  if (actorFetching && !actor) {
+  // Wait for approval and admin checks to complete before routing
+  const checksLoading = approvalLoading || !approvalFetched || adminLoading || !adminFetched;
+  if (checksLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-          <p className="text-sm text-muted-foreground">Connecting to backend…</p>
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground text-sm">Verifying account status...</p>
         </div>
       </div>
     );
   }
 
-  // Show profile setup if authenticated but no profile yet
-  const showProfileSetup = isAuthenticated && !profileLoading && profileFetched && userProfile === null;
-
-  if (showProfileSetup) {
-    return <ProfileSetup onProfileSaved={handleProfileSaved} />;
+  // Admins bypass approval check
+  if (!isAdmin && !isApproved) {
+    // We need to determine if the user is pending or rejected
+    // isCallerApproved returns false for both pending and rejected
+    // We'll show the pending page by default; the page itself can handle the distinction
+    return <PendingApprovalPage />;
   }
 
-  return <Outlet />;
+  return (
+    <>
+      <RouterProvider router={router} />
+      <Toaster richColors position="bottom-right" />
+    </>
+  );
 }
 
-// ── App ───────────────────────────────────────────────────────────────────────
-
-export default function App() {
+function App() {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <QueryClientProvider client={queryClient}>
         <RecentUploadsProvider>
-          <RouterProvider router={router} />
-          <Toaster />
+          <AppContent />
         </RecentUploadsProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );
 }
+
+export default App;

@@ -10,31 +10,9 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
-export interface AccessedFileInfo {
-  'lastAccessed' : bigint,
-  'owner' : Principal,
-  'metadata' : [] | [FileMetadata],
-  'fileName' : string,
-  'fileId' : string,
-  'relativeTime' : string,
-  'accessCount' : bigint,
-}
-export interface ActivityLog {
-  'action' : string,
-  'user' : Principal,
-  'fileName' : string,
-  'fileId' : string,
-  'timestamp' : bigint,
-  'details' : string,
-}
-export interface FavoriteFileInfo {
-  'owner' : Principal,
-  'metadata' : [] | [FileMetadata],
-  'size' : bigint,
-  'fileName' : string,
-  'fileId' : string,
-  'addedAt' : bigint,
-}
+export type ApprovalStatus = { 'pending' : null } |
+  { 'approved' : null } |
+  { 'rejected' : null };
 export interface FileMetadata {
   'id' : string,
   'owner' : Principal,
@@ -43,14 +21,6 @@ export interface FileMetadata {
   'folderId' : [] | [string],
   'uploadedAt' : bigint,
 }
-export interface FileShare {
-  'permissions' : SharePermissions,
-  'owner' : Principal,
-  'sharedAt' : bigint,
-  'sharedWith' : Principal,
-  'fileId' : string,
-  'message' : string,
-}
 export interface Folder {
   'id' : string,
   'owner' : Principal,
@@ -58,95 +28,9 @@ export interface Folder {
   'createdAt' : bigint,
   'parentId' : [] | [string],
 }
-export interface FolderProtection {
-  'isLocked' : boolean,
-  'failedAttempts' : bigint,
-  'hashedPassword' : [] | [string],
-}
-export interface Notification {
-  'id' : bigint,
-  'notificationType' : NotificationType,
-  'isRead' : boolean,
-  'toUser' : Principal,
-  'timestamp' : bigint,
-}
-export type NotificationType = {
-    'storageWarning' : {
-      'thresholdPercentage' : bigint,
-      'usedStorage' : bigint,
-      'totalStorage' : bigint,
-    }
-  } |
-  {
-    'shareNotification' : {
-      'owner' : Principal,
-      'fileName' : string,
-      'fileId' : string,
-      'message' : string,
-    }
-  } |
-  {
-    'activityAlert' : {
-      'activityType' : string,
-      'fileName' : string,
-      'fileId' : string,
-      'timestamp' : bigint,
-    }
-  } |
-  {
-    'systemAnnouncement' : {
-      'isUrgent' : boolean,
-      'title' : string,
-      'content' : string,
-    }
-  };
-export interface RecentActivity {
-  'action' : string,
-  'user' : Principal,
-  'fileName' : string,
-  'fileId' : string,
-  'timestamp' : bigint,
-  'details' : string,
-  'relativeTime' : string,
-}
-export type RetentionPeriod = bigint;
-export interface SharePermissions {
-  'canEdit' : boolean,
-  'canView' : boolean,
-  'canDownload' : boolean,
-}
-export interface SharedFileInfo {
-  'ownerEmail' : string,
-  'permissions' : SharePermissions,
-  'ownerName' : string,
-  'owner' : Principal,
-  'sharedAt' : bigint,
-  'fileName' : string,
-  'sharedWith' : Principal,
-  'fileId' : string,
-  'message' : string,
-}
-export interface SmartSuggestion {
-  'lastAccessed' : bigint,
-  'fileName' : string,
-  'fileId' : string,
-  'relativeTime' : string,
-  'accessCount' : bigint,
-  'reason' : string,
-}
-export interface TrashFolderMetadata {
-  'originalPath' : string,
-  'owner' : Principal,
-  'retentionPeriod' : RetentionPeriod,
-  'deletedAt' : bigint,
-  'folder' : Folder,
-}
-export interface TrashMetadata {
-  'originalPath' : string,
-  'metadata' : FileMetadata,
-  'fileId' : string,
-  'retentionPeriod' : RetentionPeriod,
-  'deletedAt' : bigint,
+export interface UserApprovalInfo {
+  'status' : ApprovalStatus,
+  'principal' : Principal,
 }
 export interface UserProfile { 'name' : string, 'email' : string }
 export type UserRole = { 'admin' : null } |
@@ -180,96 +64,35 @@ export interface _SERVICE {
   >,
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
-  'addFavorite' : ActorMethod<[string], boolean>,
-  'addNotification' : ActorMethod<[Principal, NotificationType], boolean>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'createFolder' : ActorMethod<[string, [] | [string]], string>,
   'deleteExpiredTrash' : ActorMethod<[], bigint>,
-  'deleteFile' : ActorMethod<[string, string, [] | [RetentionPeriod]], boolean>,
-  'downloadFileChunk' : ActorMethod<[string, bigint], [] | [Uint8Array]>,
   'favoriteFolder' : ActorMethod<[string], boolean>,
-  'getActivityLogs' : ActorMethod<[bigint], Array<ActivityLog>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getFavoriteFolders' : ActorMethod<[], Array<Folder>>,
-  'getFavorites' : ActorMethod<[], Array<FavoriteFileInfo>>,
-  'getFileMetadata' : ActorMethod<[string], [] | [FileMetadata]>,
   'getFilesInFolder' : ActorMethod<[string], Array<FileMetadata>>,
   'getFilesInFolderWithFavorites' : ActorMethod<[string], Array<FileMetadata>>,
   'getFolder' : ActorMethod<[string], [] | [Folder]>,
-  'getFolderProtectionStatus' : ActorMethod<[string], [] | [FolderProtection]>,
-  'getMostAccessedFiles' : ActorMethod<[bigint], Array<AccessedFileInfo>>,
-  'getNotifications' : ActorMethod<[], Array<Notification>>,
-  'getRecentActivities' : ActorMethod<[bigint], Array<RecentActivity>>,
-  'getSharedFileInfo' : ActorMethod<[string, Principal], [] | [FileShare]>,
-  'getSharesReceived' : ActorMethod<[], Array<SharedFileInfo>>,
-  'getSharesSent' : ActorMethod<[], Array<FileShare>>,
-  'getSmartSuggestions' : ActorMethod<[bigint], Array<SmartSuggestion>>,
-  'getStorageQuota' : ActorMethod<
-    [],
-    { 'total' : bigint, 'used' : bigint, 'available' : bigint }
-  >,
-  'getTrashRetentionPeriod' : ActorMethod<[], bigint>,
-  'getTrashStorageUsage' : ActorMethod<[], bigint>,
-  'getUnreadNotificationsCount' : ActorMethod<[], bigint>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
-  'getUserRetentionPeriod' : ActorMethod<[Principal], bigint>,
+  'isAdmin' : ActorMethod<[], boolean>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
-  'isFavorite' : ActorMethod<[string], boolean>,
+  'isCallerApproved' : ActorMethod<[], boolean>,
   'isFavoriteFolder' : ActorMethod<[string], boolean>,
   'listAllFoldersWithFavorites' : ActorMethod<[], Array<Folder>>,
-  'listAllTrash' : ActorMethod<
-    [],
-    { 'files' : Array<TrashMetadata>, 'folders' : Array<TrashFolderMetadata> }
-  >,
-  'listAllUsersStorage' : ActorMethod<[], Array<[Principal, bigint, bigint]>>,
-  'listFiles' : ActorMethod<[], Array<FileMetadata>>,
+  'listApprovals' : ActorMethod<[], Array<UserApprovalInfo>>,
   'listFolders' : ActorMethod<[], Array<Folder>>,
-  'listTrashFiles' : ActorMethod<[[] | [Principal]], Array<TrashMetadata>>,
-  'listTrashFolders' : ActorMethod<
-    [[] | [Principal]],
-    Array<TrashFolderMetadata>
-  >,
-  'markNotificationAsRead' : ActorMethod<[bigint], boolean>,
   'moveFilesToFolder' : ActorMethod<[Array<string>, string], boolean>,
   /**
    * / Improved function to move a folder (with recursive subtree traversal and proper authorization)
    */
   'moveFolder' : ActorMethod<[string, [] | [string]], boolean>,
-  'permanentlyDeleteFile' : ActorMethod<[string, boolean], boolean>,
   'permanentlyDeleteFolder' : ActorMethod<[string], boolean>,
-  'recordFileAccess' : ActorMethod<[string], boolean>,
-  'removeFavorite' : ActorMethod<[string], boolean>,
-  'removeFolderPassword' : ActorMethod<[string], undefined>,
   'renameFolder' : ActorMethod<[string, string], boolean>,
-  'restoreFile' : ActorMethod<[string, [] | [string]], boolean>,
-  'revokeShare' : ActorMethod<[string, Principal], boolean>,
+  'requestApproval' : ActorMethod<[], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
-  'setFolderPassword' : ActorMethod<[string, string], undefined>,
-  'setGlobalRetentionPeriod' : ActorMethod<[RetentionPeriod], undefined>,
-  'setUserQuota' : ActorMethod<[Principal, bigint], undefined>,
-  'setUserRetentionPeriod' : ActorMethod<
-    [Principal, RetentionPeriod],
-    undefined
-  >,
-  'shareFile' : ActorMethod<
-    [string, Principal, boolean, boolean, boolean, string],
-    boolean
-  >,
-  /**
-   * / Soft-delete method for folders (Moves folders to trash with retention period)
-   */
-  'softDeleteFolder' : ActorMethod<[string, [] | [bigint]], boolean>,
-  'toggleFolderLock' : ActorMethod<[string], undefined>,
+  'setApproval' : ActorMethod<[Principal, ApprovalStatus], undefined>,
   'unfavoriteFolder' : ActorMethod<[string], boolean>,
-  /**
-   * / Extended uploadFileChunk
-   */
-  'uploadFileChunk' : ActorMethod<
-    [string, string, bigint, Uint8Array, bigint, bigint, [] | [string]],
-    [] | [string]
-  >,
-  'verifyFolderPassword' : ActorMethod<[string, string], boolean>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];
