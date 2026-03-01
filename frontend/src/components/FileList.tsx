@@ -1,18 +1,35 @@
-import React, { useState } from 'react';
-import type { FileMetadata, Folder } from '../backend';
+import React, { useState, useCallback } from 'react';
+import type { FileMetadata, Folder, FolderProtection } from '../backend';
 import {
-  File,
-  Folder as FolderIcon,
-  MoreVertical,
-  Trash2,
-  Star,
-  StarOff,
-  Lock,
-  Unlock,
-  ChevronUp,
-  ChevronDown,
-} from 'lucide-react';
+  useListFolders,
+  useListFiles,
+  useGetFolderProtectionStatus,
+  useDownloadFile,
+  useAddFavorite,
+  useRemoveFavorite,
+  useGetFavorites,
+  useDeleteFile,
+} from '../hooks/useQueries';
+import { useFileSearch } from '../hooks/useFileSearch';
+import { useFileFilters } from '../hooks/useFileFilters';
+import { useFileSorting } from '../hooks/useFileSorting';
+import { usePagination } from '../hooks/usePagination';
+import FileToolbar from './FileToolbar';
+import FilePreview from './FilePreview';
+import RenameFolderDialog from './RenameFolderDialog';
+import MoveFolderDialog from './MoveFolderDialog';
+import DeleteFolderToTrashDialog from './DeleteFolderToTrashDialog';
+import FolderPasswordPrompt from './FolderPasswordPrompt';
+import FolderProtectionModal from './FolderProtectionModal';
+import FolderActionPasswordPrompt from './FolderActionPasswordPrompt';
+import BulkShareDialog from './BulkShareDialog';
+import BulkDeleteDialog from './BulkDeleteDialog';
+import MoveToFolderDialog from './MoveToFolderDialog';
+import RenameFileDialog from './RenameFileDialog';
+import DeleteFileDialog from './DeleteFileDialog';
+import PaginationControls from './PaginationControls';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
@@ -21,345 +38,88 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Skeleton } from '@/components/ui/skeleton';
-import FilePreview from './FilePreview';
-import DeleteFileDialog from './DeleteFileDialog';
-import RenameFileDialog from './RenameFileDialog';
-import MoveToFolderDialog from './MoveToFolderDialog';
-import BulkShareDialog from './BulkShareDialog';
-import FolderPasswordPrompt from './FolderPasswordPrompt';
-import FolderProtectionModal from './FolderProtectionModal';
-import RenameFolderDialog from './RenameFolderDialog';
-import MoveFolderDialog from './MoveFolderDialog';
-import DeleteFolderToTrashDialog from './DeleteFolderToTrashDialog';
 import {
-  useIsFavorite,
-  useAddFavorite,
-  useRemoveFavorite,
-  useIsFavoriteFolder,
-  useFavoriteFolder,
-  useUnfavoriteFolder,
-  useGetFolderProtectionStatus,
-  useDeleteFile,
-} from '../hooks/useQueries';
-import { useFileSearch } from '../hooks/useFileSearch';
-import { useFileFilters } from '../hooks/useFileFilters';
-import { useFileSorting } from '../hooks/useFileSorting';
-import { usePagination } from '../hooks/usePagination';
-import FileToolbar from './FileToolbar';
-import PaginationControls from './PaginationControls';
+  Folder as FolderIcon,
+  File,
+  MoreVertical,
+  Lock,
+  Unlock,
+  Trash2,
+  Edit,
+  Move,
+  Eye,
+  Share2,
+  Download,
+  Star,
+  X,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 interface FileListProps {
-  files?: FileMetadata[];
-  folders?: Folder[];
-  isLoading?: boolean;
-  onFolderClick?: (folderId: string) => void;
   currentFolderId?: string | null;
-  showFolders?: boolean;
+  onFolderClick?: (folderId: string) => void;
 }
 
-function formatFileSize(bytes: bigint): string {
-  const n = Number(bytes);
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+type PendingActionType = 'rename' | 'move' | 'delete' | null;
+
+function formatFileSize(bytes: bigint | number): string {
+  const size = typeof bytes === 'bigint' ? Number(bytes) : bytes;
+  if (size === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(size) / Math.log(k));
+  return `${parseFloat((size / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
 function getFileExtension(name: string): string {
-  const parts = name.split('.');
-  return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : 'FILE';
+  return name.split('.').pop()?.toUpperCase() || 'FILE';
 }
 
-// File row component
-function FileRow({
-  file,
-  isSelected,
-  onSelect,
-  onPreview,
-  onDelete,
-  onRename,
-  onMove,
-}: {
-  file: FileMetadata;
-  isSelected: boolean;
-  onSelect: (id: string, checked: boolean) => void;
-  onPreview: (file: FileMetadata) => void;
-  onDelete: (file: FileMetadata) => void;
-  onRename: (file: FileMetadata) => void;
-  onMove: (file: FileMetadata) => void;
-}) {
-  const { data: isFav } = useIsFavorite(file.id);
-  const addFav = useAddFavorite();
-  const removeFav = useRemoveFavorite();
-
-  const toggleFavorite = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      if (isFav) {
-        await removeFav.mutateAsync(file.id);
-      } else {
-        await addFav.mutateAsync(file.id);
-      }
-    } catch {
-      // Favorites not available in this version
-    }
-  };
-
-  return (
-    <tr className="border-b border-border hover:bg-muted/30 transition-colors">
-      <td className="px-4 py-3 w-10">
-        <Checkbox
-          checked={isSelected}
-          onCheckedChange={(checked) => onSelect(file.id, !!checked)}
-        />
-      </td>
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center shrink-0">
-            <File className="w-4 h-4 text-primary" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-medium truncate">{file.name}</p>
-            <p className="text-xs text-muted-foreground">{getFileExtension(file.name)}</p>
-          </div>
-        </div>
-      </td>
-      <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
-        {formatFileSize(file.size)}
-      </td>
-      <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
-        {new Date(Number(file.uploadedAt) / 1_000_000).toLocaleDateString()}
-      </td>
-      <td className="px-4 py-3 text-right">
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={toggleFavorite}
-            title={isFav ? 'Remove from favorites' : 'Add to favorites'}
-          >
-            {isFav ? (
-              <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-            ) : (
-              <StarOff className="w-3.5 h-3.5 text-muted-foreground" />
-            )}
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-7 w-7">
-                <MoreVertical className="w-3.5 h-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onPreview(file)}>Preview</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onRename(file)}>Rename</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onMove(file)}>Move to folder</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive" onClick={() => onDelete(file)}>
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-// Folder row component
-function FolderRow({
-  folder,
-  onFolderClick,
-  onRename,
-  onMove,
-  onDelete,
-}: {
-  folder: Folder;
-  onFolderClick?: (id: string) => void;
-  onRename: (folder: Folder) => void;
-  onMove: (folder: Folder) => void;
-  onDelete: (folder: Folder) => void;
-}) {
-  const { data: isFav } = useIsFavoriteFolder(folder.id);
-  const favFolder = useFavoriteFolder();
-  const unfavFolder = useUnfavoriteFolder();
-  const { data: protection } = useGetFolderProtectionStatus(folder.id);
-  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
-  const [showProtectionModal, setShowProtectionModal] = useState(false);
-  const [pendingAction, setPendingAction] = useState<'rename' | 'move' | 'delete' | null>(null);
-
-  const isLocked = protection?.isLocked ?? false;
-
-  const toggleFavorite = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      if (isFav) {
-        await unfavFolder.mutateAsync(folder.id);
-      } else {
-        await favFolder.mutateAsync(folder.id);
-      }
-    } catch {
-      // Folder favorites not available
-    }
-  };
-
-  const handleFolderClick = () => {
-    if (isLocked) {
-      setShowPasswordPrompt(true);
-    } else {
-      onFolderClick?.(folder.id);
-    }
-  };
-
-  const handleActionWithPasswordCheck = (action: 'rename' | 'move' | 'delete') => {
-    if (isLocked) {
-      setPendingAction(action);
-      setShowPasswordPrompt(true);
-    } else {
-      executeAction(action);
-    }
-  };
-
-  const executeAction = (action: 'rename' | 'move' | 'delete') => {
-    if (action === 'rename') onRename(folder);
-    else if (action === 'move') onMove(folder);
-    else if (action === 'delete') onDelete(folder);
-  };
-
-  return (
-    <>
-      <tr className="border-b border-border hover:bg-muted/30 transition-colors">
-        <td className="px-4 py-3 w-10">
-          <Checkbox disabled />
-        </td>
-        <td className="px-4 py-3">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={handleFolderClick}>
-            <div className="w-8 h-8 rounded bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
-              <FolderIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-medium truncate">{folder.name}</p>
-              <p className="text-xs text-muted-foreground">Folder</p>
-            </div>
-            {isLocked && <Lock className="w-3.5 h-3.5 text-muted-foreground ml-1" />}
-          </div>
-        </td>
-        <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">—</td>
-        <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
-          {new Date(Number(folder.createdAt) / 1_000_000).toLocaleDateString()}
-        </td>
-        <td className="px-4 py-3 text-right">
-          <div className="flex items-center justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={toggleFavorite}
-              title={isFav ? 'Remove from favorites' : 'Add to favorites'}
-            >
-              {isFav ? (
-                <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-              ) : (
-                <StarOff className="w-3.5 h-3.5 text-muted-foreground" />
-              )}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => setShowProtectionModal(true)}
-              title="Folder protection"
-            >
-              {isLocked ? (
-                <Lock className="w-3.5 h-3.5 text-amber-500" />
-              ) : (
-                <Unlock className="w-3.5 h-3.5 text-muted-foreground" />
-              )}
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7">
-                  <MoreVertical className="w-3.5 h-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleActionWithPasswordCheck('rename')}>
-                  Rename
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleActionWithPasswordCheck('move')}>
-                  Move
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-destructive"
-                  onClick={() => handleActionWithPasswordCheck('delete')}
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </td>
-      </tr>
-
-      {showPasswordPrompt && (
-        <FolderPasswordPrompt
-          folder={folder}
-          isOpen={showPasswordPrompt}
-          onClose={() => {
-            setShowPasswordPrompt(false);
-            setPendingAction(null);
-          }}
-          onSuccess={() => {
-            setShowPasswordPrompt(false);
-            if (pendingAction) {
-              executeAction(pendingAction);
-              setPendingAction(null);
-            } else {
-              onFolderClick?.(folder.id);
-            }
-          }}
-        />
-      )}
-
-      {showProtectionModal && (
-        <FolderProtectionModal
-          folder={folder}
-          isOpen={showProtectionModal}
-          onClose={() => setShowProtectionModal(false)}
-        />
-      )}
-    </>
-  );
-}
-
-export default function FileList({
-  files = [],
-  folders = [],
-  isLoading = false,
-  onFolderClick,
-  currentFolderId,
-  showFolders = true,
-}: FileListProps) {
+export default function FileList({ currentFolderId, onFolderClick }: FileListProps) {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
-  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const [selectedFolders, setSelectedFolders] = useState<string[]>([]);
+
+  // File action states
   const [previewFile, setPreviewFile] = useState<FileMetadata | null>(null);
+  const [previewFileData, setPreviewFileData] = useState<Uint8Array | null>(null);
   const [deleteFileTarget, setDeleteFileTarget] = useState<FileMetadata | null>(null);
   const [renameFileTarget, setRenameFileTarget] = useState<FileMetadata | null>(null);
   const [moveFileTarget, setMoveFileTarget] = useState<FileMetadata | null>(null);
-  const [bulkShareOpen, setBulkShareOpen] = useState(false);
-  const [renameFolder, setRenameFolder] = useState<Folder | null>(null);
-  const [moveFolder, setMoveFolder] = useState<Folder | null>(null);
-  const [deleteFolder, setDeleteFolder] = useState<Folder | null>(null);
-  const [sortField, setSortField] = useState<'name' | 'size' | 'date'>('date');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  // Use the actual hook APIs
+  // Folder action states
+  const [renameFolderTarget, setRenameFolderTarget] = useState<Folder | null>(null);
+  const [moveFolderTarget, setMoveFolderTarget] = useState<Folder | null>(null);
+  const [deleteFolderTarget, setDeleteFolderTarget] = useState<Folder | null>(null);
+  const [protectionFolderTarget, setProtectionFolderTarget] = useState<Folder | null>(null);
+  const [protectionData, setProtectionData] = useState<FolderProtection | null | undefined>(null);
+  const [passwordPromptFolder, setPasswordPromptFolder] = useState<{ id: string; name: string } | null>(null);
+
+  // Password gating for folder actions (Rename / Move / Delete)
+  const [pendingActionType, setPendingActionType] = useState<PendingActionType>(null);
+  const [pendingFolder, setPendingFolder] = useState<Folder | null>(null);
+  const [showFolderActionPassword, setShowFolderActionPassword] = useState(false);
+
+  // Bulk action states
+  const [showBulkShare, setShowBulkShare] = useState(false);
+  const [showBulkDelete, setShowBulkDelete] = useState(false);
+  const [showBulkMove, setShowBulkMove] = useState(false);
+
+  // Folder protection status cache: folderId -> isProtected
+  const [folderProtectionCache, setFolderProtectionCache] = useState<Record<string, boolean>>({});
+
+  const { data: folders = [], isLoading: foldersLoading } = useListFolders();
+  const { data: files = [], isLoading: filesLoading } = useListFiles();
+  const { data: favorites = [] } = useGetFavorites();
+  const downloadFile = useDownloadFile();
+  const addFavoriteMutation = useAddFavorite();
+  const removeFavoriteMutation = useRemoveFavorite();
+  const deleteFileMutation = useDeleteFile();
+
+  const favoriteIds = new Set(favorites.map((f) => f.fileId));
+
+  // Search / filter / sort hooks
   const { searchQuery, setSearchQuery, searchFiles } = useFileSearch();
   const {
     filters,
@@ -372,83 +132,179 @@ export default function FileList({
     filterFiles,
   } = useFileFilters();
   const { sortBy, sortOrder, setSortOption, sortFiles } = useFileSorting();
-  const { currentPage, itemsPerPage, setPage, setItemsPerPage, paginatedData } =
-    usePagination<FileMetadata>();
+  const pagination = usePagination<FileMetadata>();
 
-  const deleteFileMutation = useDeleteFile();
+  // Filter folders/files by current folder
+  const currentFolders = folders.filter(f =>
+    currentFolderId ? f.parentId === currentFolderId : !f.parentId
+  );
+  const currentFiles = files.filter(f =>
+    currentFolderId ? f.folderId === currentFolderId : !f.folderId
+  );
 
-  // Apply search, filter, sort pipeline
-  const searched = searchFiles(files);
-  const filtered = filterFiles(searched);
-  const sorted = sortFiles(filtered);
-  const paginated = paginatedData(sorted) as FileMetadata[];
+  const processedFiles: FileMetadata[] = sortFiles(filterFiles(searchFiles(currentFiles)));
+  const paginatedFiles: FileMetadata[] = pagination.paginatedData(processedFiles) as FileMetadata[];
 
-  const handleSelectFile = (id: string, checked: boolean) => {
-    setSelectedFiles((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  };
+  // ── Protection cache helpers ───────────────────────────────────────────────
 
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedFiles(new Set(sorted.map((f) => f.id)));
-    } else {
-      setSelectedFiles(new Set());
+  const handleFolderProtectionLoaded = useCallback(
+    (folderId: string, protection: FolderProtection | null | undefined) => {
+      const isProtected = !!(protection?.hashedPassword && protection.isLocked);
+      setFolderProtectionCache(prev => {
+        if (prev[folderId] === isProtected) return prev;
+        return { ...prev, [folderId]: isProtected };
+      });
+    },
+    []
+  );
+
+  const isFolderProtected = useCallback(
+    (folderId: string): boolean => folderProtectionCache[folderId] === true,
+    [folderProtectionCache]
+  );
+
+  // ── Password-gated folder actions ──────────────────────────────────────────
+
+  const openFolderActionDialog = useCallback((folder: Folder, action: PendingActionType) => {
+    if (action === 'rename') setRenameFolderTarget(folder);
+    else if (action === 'move') setMoveFolderTarget(folder);
+    else if (action === 'delete') setDeleteFolderTarget(folder);
+  }, []);
+
+  const requestFolderAction = useCallback(
+    (folder: Folder, action: PendingActionType) => {
+      if (isFolderProtected(folder.id)) {
+        setPendingFolder(folder);
+        setPendingActionType(action);
+        setShowFolderActionPassword(true);
+      } else {
+        openFolderActionDialog(folder, action);
+      }
+    },
+    [isFolderProtected, openFolderActionDialog]
+  );
+
+  const handleFolderActionPasswordConfirmed = useCallback(() => {
+    setShowFolderActionPassword(false);
+    if (pendingFolder && pendingActionType) {
+      openFolderActionDialog(pendingFolder, pendingActionType);
+    }
+    setPendingFolder(null);
+    setPendingActionType(null);
+  }, [pendingFolder, pendingActionType, openFolderActionDialog]);
+
+  const handleFolderActionPasswordDismissed = useCallback(() => {
+    setShowFolderActionPassword(false);
+    setPendingFolder(null);
+    setPendingActionType(null);
+  }, []);
+
+  // ── Folder click (open / unlock) ───────────────────────────────────────────
+
+  const handleFolderClick = useCallback(
+    (folder: Folder) => {
+      if (isFolderProtected(folder.id)) {
+        setPasswordPromptFolder({ id: folder.id, name: folder.name });
+      } else {
+        onFolderClick?.(folder.id);
+      }
+    },
+    [isFolderProtected, onFolderClick]
+  );
+
+  // ── File preview ───────────────────────────────────────────────────────────
+
+  const handlePreviewFile = useCallback(
+    async (file: FileMetadata) => {
+      setPreviewFile(file);
+      setPreviewFileData(null);
+      try {
+        const result = await downloadFile.mutateAsync(file.id);
+        setPreviewFileData(result.data);
+      } catch {
+        // preview will show loading/error state
+      }
+    },
+    [downloadFile]
+  );
+
+  // ── Favorites ──────────────────────────────────────────────────────────────
+
+  const handleToggleFavorite = async (fileId: string, isFav: boolean) => {
+    try {
+      if (isFav) {
+        await removeFavoriteMutation.mutateAsync(fileId);
+        toast.success('Removed from favorites');
+      } else {
+        await addFavoriteMutation.mutateAsync(fileId);
+        toast.success('Added to favorites');
+      }
+    } catch {
+      toast.error('Failed to update favorites');
     }
   };
 
-  const toggleSort = (field: 'name' | 'size' | 'date') => {
-    if (sortField === field) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortDir('asc');
-    }
-  };
+  // ── Bulk download ──────────────────────────────────────────────────────────
 
-  const SortIcon = ({ field }: { field: 'name' | 'size' | 'date' }) => {
-    if (sortField !== field) return null;
-    return sortDir === 'asc' ? (
-      <ChevronUp className="w-3 h-3 inline ml-1" />
-    ) : (
-      <ChevronDown className="w-3 h-3 inline ml-1" />
+  const handleBulkDownload = useCallback(async () => {
+    for (const fileId of selectedFiles) {
+      const file = files.find(f => f.id === fileId);
+      if (!file) continue;
+      try {
+        const result = await downloadFile.mutateAsync(fileId);
+        if (result?.data) {
+          const blob = new Blob([result.data]);
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = file.name;
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+      } catch {
+        // skip failed downloads
+      }
+    }
+  }, [selectedFiles, files, downloadFile]);
+
+  // ── Selection helpers ──────────────────────────────────────────────────────
+
+  const toggleFileSelection = (fileId: string) => {
+    setSelectedFiles(prev =>
+      prev.includes(fileId) ? prev.filter(id => id !== fileId) : [...prev, fileId]
     );
   };
 
-  const handleDeleteFileConfirm = async (customRetentionPeriod: bigint | null) => {
-    if (!deleteFileTarget) return;
-    try {
-      await deleteFileMutation.mutateAsync({
-        fileId: deleteFileTarget.id,
-        originalPath: '/',
-        customRetentionPeriod,
-      });
-      toast.success(`"${deleteFileTarget.name}" moved to trash`);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to delete file';
-      toast.error(message);
-    } finally {
-      setDeleteFileTarget(null);
-    }
+  const toggleFolderSelection = (folderId: string) => {
+    setSelectedFolders(prev =>
+      prev.includes(folderId) ? prev.filter(id => id !== folderId) : [...prev, folderId]
+    );
   };
+
+  const clearSelection = () => {
+    setSelectedFiles([]);
+    setSelectedFolders([]);
+  };
+
+  const totalSelected = selectedFiles.length + selectedFolders.length;
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  const isLoading = foldersLoading || filesLoading;
 
   if (isLoading) {
     return (
-      <div className="space-y-2">
-        {[...Array(5)].map((_, i) => (
-          <Skeleton key={i} className="h-12 w-full rounded-lg" />
-        ))}
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }
 
-  const allEmpty = files.length === 0 && folders.length === 0;
+  const hasContent = currentFolders.length > 0 || processedFiles.length > 0;
 
   return (
     <div className="space-y-4">
+      {/* Toolbar */}
       <FileToolbar
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -466,163 +322,760 @@ export default function FileList({
         onViewModeChange={setViewMode}
       />
 
-      {/* Bulk actions */}
-      {selectedFiles.size > 0 && (
-        <div className="flex items-center gap-2 p-2 bg-primary/5 rounded-lg border border-primary/20">
-          <span className="text-sm font-medium">{selectedFiles.size} selected</span>
-          <div className="flex gap-2 ml-auto">
-            <Button size="sm" variant="outline" onClick={() => setBulkShareOpen(true)}>
-              Share
-            </Button>
-          </div>
+      {/* Bulk action bar */}
+      {totalSelected > 0 && (
+        <div className="flex items-center gap-2 p-3 bg-primary/10 rounded-lg border border-primary/20 flex-wrap">
+          <span className="text-sm font-medium text-primary">{totalSelected} selected</span>
+          <div className="flex-1" />
+          <Button size="sm" variant="outline" onClick={handleBulkDownload}>
+            <Download className="h-4 w-4 mr-1" />
+            Download
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setShowBulkShare(true)}>
+            <Share2 className="h-4 w-4 mr-1" />
+            Share
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setShowBulkMove(true)}>
+            <Move className="h-4 w-4 mr-1" />
+            Move
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowBulkDelete(true)}
+            className="text-destructive border-destructive/40 hover:bg-destructive/10"
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            Delete
+          </Button>
+          <Button size="sm" variant="ghost" onClick={clearSelection}>
+            <X className="h-4 w-4" />
+          </Button>
         </div>
       )}
 
-      {allEmpty ? (
-        <div className="text-center py-16">
-          <FolderIcon className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-          <p className="text-muted-foreground font-medium">No files or folders</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Upload files or create folders to get started
-          </p>
+      {/* Empty state */}
+      {!hasContent && (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <FolderIcon className="h-12 w-12 mb-4 opacity-30" />
+          <p className="text-lg font-medium">No files or folders</p>
+          <p className="text-sm">Upload files or create a folder to get started</p>
         </div>
-      ) : (
-        <div className="rounded-lg border border-border overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-muted/30 border-b border-border">
-                <th className="px-4 py-3 w-10">
-                  <Checkbox
-                    checked={
-                      sorted.length > 0 && sorted.every((f) => selectedFiles.has(f.id))
-                    }
-                    onCheckedChange={handleSelectAll}
-                  />
-                </th>
-                <th
-                  className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer"
-                  onClick={() => toggleSort('name')}
-                >
-                  Name <SortIcon field="name" />
-                </th>
-                <th
-                  className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer hidden md:table-cell"
-                  onClick={() => toggleSort('size')}
-                >
-                  Size <SortIcon field="size" />
-                </th>
-                <th
-                  className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer hidden lg:table-cell"
-                  onClick={() => toggleSort('date')}
-                >
-                  Date <SortIcon field="date" />
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {showFolders &&
-                folders.map((folder) => (
-                  <FolderRow
-                    key={folder.id}
-                    folder={folder}
-                    onFolderClick={onFolderClick}
-                    onRename={setRenameFolder}
-                    onMove={setMoveFolder}
-                    onDelete={setDeleteFolder}
-                  />
-                ))}
-              {paginated.map((file: FileMetadata) => (
+      )}
+
+      {/* Folders */}
+      {currentFolders.length > 0 && (
+        <div className="space-y-1">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">
+            Folders
+          </h3>
+          {viewMode === 'grid' ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {currentFolders.map(folder => (
+                <FolderCard
+                  key={folder.id}
+                  folder={folder}
+                  isSelected={selectedFolders.includes(folder.id)}
+                  onSelect={() => toggleFolderSelection(folder.id)}
+                  onClick={() => handleFolderClick(folder)}
+                  onRename={() => requestFolderAction(folder, 'rename')}
+                  onMove={() => requestFolderAction(folder, 'move')}
+                  onDelete={() => requestFolderAction(folder, 'delete')}
+                  onProtection={(prot) => {
+                    setProtectionFolderTarget(folder);
+                    setProtectionData(prot);
+                  }}
+                  onProtectionLoaded={(prot) => handleFolderProtectionLoaded(folder.id, prot)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {currentFolders.map(folder => (
+                <FolderRow
+                  key={folder.id}
+                  folder={folder}
+                  isSelected={selectedFolders.includes(folder.id)}
+                  onSelect={() => toggleFolderSelection(folder.id)}
+                  onClick={() => handleFolderClick(folder)}
+                  onRename={() => requestFolderAction(folder, 'rename')}
+                  onMove={() => requestFolderAction(folder, 'move')}
+                  onDelete={() => requestFolderAction(folder, 'delete')}
+                  onProtection={(prot) => {
+                    setProtectionFolderTarget(folder);
+                    setProtectionData(prot);
+                  }}
+                  onProtectionLoaded={(prot) => handleFolderProtectionLoaded(folder.id, prot)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Files */}
+      {processedFiles.length > 0 && (
+        <div className="space-y-1">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">
+            Files
+          </h3>
+          {viewMode === 'grid' ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {paginatedFiles.map((file: FileMetadata) => (
+                <FileCard
+                  key={file.id}
+                  file={file}
+                  isFavorite={favoriteIds.has(file.id)}
+                  isSelected={selectedFiles.includes(file.id)}
+                  onSelect={() => toggleFileSelection(file.id)}
+                  onPreview={() => handlePreviewFile(file)}
+                  onRename={() => setRenameFileTarget(file)}
+                  onMove={() => setMoveFileTarget(file)}
+                  onDelete={() => setDeleteFileTarget(file)}
+                  onToggleFavorite={() => handleToggleFavorite(file.id, favoriteIds.has(file.id))}
+                  onDownload={async () => {
+                    try {
+                      const result = await downloadFile.mutateAsync(file.id);
+                      if (result?.data) {
+                        const blob = new Blob([result.data]);
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = file.name;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }
+                    } catch { /* ignore */ }
+                  }}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {paginatedFiles.map((file: FileMetadata) => (
                 <FileRow
                   key={file.id}
                   file={file}
-                  isSelected={selectedFiles.has(file.id)}
-                  onSelect={handleSelectFile}
-                  onPreview={setPreviewFile}
-                  onDelete={setDeleteFileTarget}
-                  onRename={setRenameFileTarget}
-                  onMove={setMoveFileTarget}
+                  isFavorite={favoriteIds.has(file.id)}
+                  isSelected={selectedFiles.includes(file.id)}
+                  onSelect={() => toggleFileSelection(file.id)}
+                  onPreview={() => handlePreviewFile(file)}
+                  onRename={() => setRenameFileTarget(file)}
+                  onMove={() => setMoveFileTarget(file)}
+                  onDelete={() => setDeleteFileTarget(file)}
+                  onToggleFavorite={() => handleToggleFavorite(file.id, favoriteIds.has(file.id))}
+                  onDownload={async () => {
+                    try {
+                      const result = await downloadFile.mutateAsync(file.id);
+                      if (result?.data) {
+                        const blob = new Blob([result.data]);
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = file.name;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }
+                    } catch { /* ignore */ }
+                  }}
                 />
               ))}
-            </tbody>
-          </table>
+            </div>
+          )}
         </div>
       )}
 
-      {sorted.length > itemsPerPage && (
+      {/* Pagination */}
+      {processedFiles.length > 0 && (
         <PaginationControls
-          currentPage={currentPage}
-          totalItems={sorted.length}
-          itemsPerPage={itemsPerPage}
-          onPageChange={setPage}
-          onItemsPerPageChange={setItemsPerPage}
+          currentPage={pagination.currentPage}
+          totalItems={processedFiles.length}
+          itemsPerPage={pagination.itemsPerPage}
+          onPageChange={pagination.setPage}
+          onItemsPerPageChange={pagination.setItemsPerPage}
         />
       )}
 
-      {/* Dialogs */}
+      {/* ── Dialogs ── */}
+
+      {/* Password prompt for opening a locked folder */}
+      {passwordPromptFolder && (
+        <FolderPasswordPrompt
+          open={!!passwordPromptFolder}
+          onOpenChange={(open) => { if (!open) setPasswordPromptFolder(null); }}
+          folderId={passwordPromptFolder.id}
+          folderName={passwordPromptFolder.name}
+          onSuccess={() => {
+            const id = passwordPromptFolder.id;
+            setPasswordPromptFolder(null);
+            onFolderClick?.(id);
+          }}
+        />
+      )}
+
+      {/* Single FolderActionPasswordPrompt for Rename / Move / Delete */}
+      {showFolderActionPassword && pendingFolder && (
+        <FolderActionPasswordPrompt
+          folderId={pendingFolder.id}
+          folderName={pendingFolder.name}
+          actionLabel={
+            pendingActionType === 'rename'
+              ? 'Rename'
+              : pendingActionType === 'move'
+              ? 'Move'
+              : 'Delete'
+          }
+          isOpen={showFolderActionPassword}
+          onSuccess={handleFolderActionPasswordConfirmed}
+          onClose={handleFolderActionPasswordDismissed}
+        />
+      )}
+
+      {/* File preview */}
       {previewFile && (
         <FilePreview
           file={previewFile}
-          fileData={null}
-          onClose={() => setPreviewFile(null)}
+          fileData={previewFileData}
+          onClose={() => {
+            setPreviewFile(null);
+            setPreviewFileData(null);
+          }}
         />
       )}
-      {deleteFileTarget && (
-        <DeleteFileDialog
-          open={!!deleteFileTarget}
-          onOpenChange={(open) => !open && setDeleteFileTarget(null)}
-          file={deleteFileTarget}
-          onConfirm={handleDeleteFileConfirm}
-        />
-      )}
+
+      {/* Rename file */}
       {renameFileTarget && (
         <RenameFileDialog
           open={!!renameFileTarget}
-          onOpenChange={(open) => !open && setRenameFileTarget(null)}
+          onOpenChange={(open) => { if (!open) setRenameFileTarget(null); }}
           fileId={renameFileTarget.id}
           currentName={renameFileTarget.name}
         />
       )}
+
+      {/* Move file */}
       {moveFileTarget && (
         <MoveToFolderDialog
           open={!!moveFileTarget}
-          onOpenChange={(open) => !open && setMoveFileTarget(null)}
+          onOpenChange={(open) => { if (!open) setMoveFileTarget(null); }}
           fileIds={[moveFileTarget.id]}
         />
       )}
-      {bulkShareOpen && (
-        <BulkShareDialog
-          isOpen={bulkShareOpen}
-          onClose={() => setBulkShareOpen(false)}
-          selectedFileIds={Array.from(selectedFiles)}
-        />
-      )}
-      {renameFolder && (
-        <RenameFolderDialog
-          open={!!renameFolder}
-          onOpenChange={(open) => !open && setRenameFolder(null)}
-          folder={renameFolder}
-        />
-      )}
-      {moveFolder && (
-        <MoveFolderDialog
-          open={!!moveFolder}
-          onOpenChange={(open) => !open && setMoveFolder(null)}
-          folder={moveFolder}
-        />
-      )}
-      {deleteFolder && (
-        <DeleteFolderToTrashDialog
-          open={!!deleteFolder}
-          onOpenChange={(open) => !open && setDeleteFolder(null)}
-          folder={deleteFolder}
-          onConfirm={async () => {
-            setDeleteFolder(null);
+
+      {/* Delete file */}
+      {deleteFileTarget && (
+        <DeleteFileDialog
+          open={!!deleteFileTarget}
+          onOpenChange={(open) => { if (!open) setDeleteFileTarget(null); }}
+          file={deleteFileTarget}
+          onConfirm={async (customRetentionPeriod) => {
+            try {
+              await deleteFileMutation.mutateAsync({
+                fileId: deleteFileTarget.id,
+                originalPath: deleteFileTarget.folderId
+                  ? `/folder/${deleteFileTarget.folderId}`
+                  : '/',
+                customRetentionPeriod: customRetentionPeriod ?? null,
+              });
+              toast.success(`"${deleteFileTarget.name}" moved to trash`);
+              setDeleteFileTarget(null);
+            } catch {
+              toast.error('Failed to delete file');
+            }
           }}
         />
       )}
+
+      {/* Rename folder */}
+      {renameFolderTarget && (
+        <RenameFolderDialog
+          open={!!renameFolderTarget}
+          onOpenChange={(open) => { if (!open) setRenameFolderTarget(null); }}
+          folder={renameFolderTarget}
+        />
+      )}
+
+      {/* Move folder */}
+      {moveFolderTarget && (
+        <MoveFolderDialog
+          open={!!moveFolderTarget}
+          onOpenChange={(open) => { if (!open) setMoveFolderTarget(null); }}
+          folder={moveFolderTarget}
+        />
+      )}
+
+      {/* Delete folder */}
+      {deleteFolderTarget && (
+        <DeleteFolderToTrashDialog
+          open={!!deleteFolderTarget}
+          onOpenChange={(open) => { if (!open) setDeleteFolderTarget(null); }}
+          folder={deleteFolderTarget}
+          onConfirm={async (_folderId, _retentionPeriodNs) => {
+            // handled inside the dialog component
+          }}
+        />
+      )}
+
+      {/* Folder protection modal */}
+      {protectionFolderTarget && (
+        <FolderProtectionModal
+          open={!!protectionFolderTarget}
+          onOpenChange={(open) => { if (!open) setProtectionFolderTarget(null); }}
+          folder={protectionFolderTarget}
+          protection={protectionData}
+        />
+      )}
+
+      {/* Bulk share */}
+      <BulkShareDialog
+        isOpen={showBulkShare}
+        onClose={() => setShowBulkShare(false)}
+        selectedFileIds={selectedFiles}
+        onSuccess={() => {
+          setShowBulkShare(false);
+          clearSelection();
+        }}
+      />
+
+      {/* Bulk delete */}
+      <BulkDeleteDialog
+        fileCount={selectedFiles.length}
+        isOpen={showBulkDelete}
+        onClose={() => setShowBulkDelete(false)}
+        onConfirm={async (retentionDays) => {
+          for (const fileId of selectedFiles) {
+            const file = files.find(f => f.id === fileId);
+            if (file) {
+              try {
+                await deleteFileMutation.mutateAsync({
+                  fileId,
+                  originalPath: file.folderId ? `/folder/${file.folderId}` : '/',
+                  customRetentionPeriod:
+                    BigInt(retentionDays * 24 * 60 * 60) * BigInt(1_000_000_000),
+                });
+              } catch {
+                toast.error(`Failed to delete ${file.name}`);
+              }
+            }
+          }
+          toast.success(`${selectedFiles.length} file(s) moved to trash`);
+          clearSelection();
+          setShowBulkDelete(false);
+        }}
+        isLoading={deleteFileMutation.isPending}
+      />
+
+      {/* Bulk move */}
+      {showBulkMove && (
+        <MoveToFolderDialog
+          open={showBulkMove}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShowBulkMove(false);
+              clearSelection();
+            }
+          }}
+          fileIds={selectedFiles}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Sub-components ─────────────────────────────────────────────────────────
+
+interface FolderRowProps {
+  folder: Folder;
+  isSelected: boolean;
+  onSelect: () => void;
+  onClick: () => void;
+  onRename: () => void;
+  onMove: () => void;
+  onDelete: () => void;
+  onProtection: (prot: FolderProtection | null | undefined) => void;
+  onProtectionLoaded: (prot: FolderProtection | null | undefined) => void;
+}
+
+function FolderRow({
+  folder,
+  isSelected,
+  onSelect,
+  onClick,
+  onRename,
+  onMove,
+  onDelete,
+  onProtection,
+  onProtectionLoaded,
+}: FolderRowProps) {
+  const { data: protection } = useGetFolderProtectionStatus(folder.id);
+
+  React.useEffect(() => {
+    onProtectionLoaded(protection);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [protection]);
+
+  const isProtected = !!protection?.hashedPassword;
+  const isLocked = protection?.isLocked ?? false;
+
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer group transition-colors hover:bg-muted/50',
+        isSelected && 'bg-primary/10'
+      )}
+      onClick={onClick}
+    >
+      <Checkbox
+        checked={isSelected}
+        onCheckedChange={onSelect}
+        onClick={(e) => e.stopPropagation()}
+        className="shrink-0"
+      />
+      <FolderIcon className="h-5 w-5 text-amber-500 shrink-0" />
+      <span className="flex-1 text-sm font-medium truncate">{folder.name}</span>
+
+      {/* Right-side actions: lock icon BEFORE three-dot menu */}
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {isProtected && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={(e) => {
+              e.stopPropagation();
+              onProtection(protection);
+            }}
+            title={isLocked ? 'Folder is locked' : 'Folder is unlocked'}
+          >
+            {isLocked ? (
+              <Lock className="h-4 w-4 text-amber-500" />
+            ) : (
+              <Unlock className="h-4 w-4 text-muted-foreground" />
+            )}
+          </Button>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onRename(); }}>
+              <Edit className="h-4 w-4 mr-2" />
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onMove(); }}>
+              <Move className="h-4 w-4 mr-2" />
+              Move
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                onProtection(protection);
+              }}
+            >
+              <Lock className="h-4 w-4 mr-2" />
+              Protection Settings
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+}
+
+// Use type alias instead of empty interface to avoid @typescript-eslint/no-empty-object-type
+type FolderCardProps = FolderRowProps;
+
+function FolderCard({
+  folder,
+  isSelected,
+  onSelect,
+  onClick,
+  onRename,
+  onMove,
+  onDelete,
+  onProtection,
+  onProtectionLoaded,
+}: FolderCardProps) {
+  const { data: protection } = useGetFolderProtectionStatus(folder.id);
+
+  React.useEffect(() => {
+    onProtectionLoaded(protection);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [protection]);
+
+  const isProtected = !!protection?.hashedPassword;
+  const isLocked = protection?.isLocked ?? false;
+
+  return (
+    <div
+      className={cn(
+        'relative flex flex-col items-center gap-2 p-4 rounded-xl border border-border cursor-pointer group transition-colors hover:bg-muted/50',
+        isSelected && 'bg-primary/10 border-primary/30'
+      )}
+      onClick={onClick}
+    >
+      <Checkbox
+        checked={isSelected}
+        onCheckedChange={onSelect}
+        onClick={(e) => e.stopPropagation()}
+        className="absolute top-2 left-2"
+      />
+      <FolderIcon className="h-12 w-12 text-amber-500" />
+      <span className="text-sm font-medium truncate w-full text-center">{folder.name}</span>
+
+      {/* Right-side actions: lock icon BEFORE three-dot menu */}
+      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {isProtected && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={(e) => {
+              e.stopPropagation();
+              onProtection(protection);
+            }}
+            title={isLocked ? 'Folder is locked' : 'Folder is unlocked'}
+          >
+            {isLocked ? (
+              <Lock className="h-3 w-3 text-amber-500" />
+            ) : (
+              <Unlock className="h-3 w-3 text-muted-foreground" />
+            )}
+          </Button>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreVertical className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onRename(); }}>
+              <Edit className="h-4 w-4 mr-2" />
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onMove(); }}>
+              <Move className="h-4 w-4 mr-2" />
+              Move
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                onProtection(protection);
+              }}
+            >
+              <Lock className="h-4 w-4 mr-2" />
+              Protection Settings
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+}
+
+interface FileRowProps {
+  file: FileMetadata;
+  isFavorite: boolean;
+  isSelected: boolean;
+  onSelect: () => void;
+  onPreview: () => void;
+  onRename: () => void;
+  onMove: () => void;
+  onDelete: () => void;
+  onToggleFavorite: () => void;
+  onDownload: () => void;
+}
+
+function FileRow({
+  file,
+  isFavorite,
+  isSelected,
+  onSelect,
+  onPreview,
+  onRename,
+  onMove,
+  onDelete,
+  onToggleFavorite,
+  onDownload,
+}: FileRowProps) {
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-3 px-3 py-2.5 rounded-lg group transition-colors hover:bg-muted/50',
+        isSelected && 'bg-primary/10'
+      )}
+    >
+      <Checkbox
+        checked={isSelected}
+        onCheckedChange={onSelect}
+        className="shrink-0"
+      />
+      <File className="h-5 w-5 text-muted-foreground shrink-0" />
+      <span className="flex-1 text-sm truncate">{file.name}</span>
+      <span className="text-xs text-muted-foreground hidden sm:block w-16 text-right">
+        {formatFileSize(file.size)}
+      </span>
+      <Badge variant="outline" className="text-xs hidden md:flex">
+        {getFileExtension(file.name)}
+      </Badge>
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={onToggleFavorite}
+          title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+        >
+          <Star
+            className={cn(
+              'h-4 w-4',
+              isFavorite ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground'
+            )}
+          />
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-7 w-7">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onPreview}>
+              <Eye className="h-4 w-4 mr-2" />
+              Preview
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onRename}>
+              <Edit className="h-4 w-4 mr-2" />
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onMove}>
+              <Move className="h-4 w-4 mr-2" />
+              Move
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onDownload}>
+              <Download className="h-4 w-4 mr-2" />
+              Download
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-destructive" onClick={onDelete}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+}
+
+// Use type alias instead of empty interface to avoid @typescript-eslint/no-empty-object-type
+type FileCardProps = FileRowProps;
+
+function FileCard({
+  file,
+  isFavorite,
+  isSelected,
+  onSelect,
+  onPreview,
+  onRename,
+  onMove,
+  onDelete,
+  onToggleFavorite,
+  onDownload,
+}: FileCardProps) {
+  return (
+    <div
+      className={cn(
+        'relative flex flex-col gap-2 p-4 rounded-xl border border-border group transition-colors hover:bg-muted/50',
+        isSelected && 'bg-primary/10 border-primary/30'
+      )}
+    >
+      <Checkbox
+        checked={isSelected}
+        onCheckedChange={onSelect}
+        onClick={(e) => e.stopPropagation()}
+        className="absolute top-2 left-2"
+      />
+      <div className="flex justify-center py-2">
+        <File className="h-10 w-10 text-muted-foreground" />
+      </div>
+      <span className="text-sm font-medium truncate text-center">{file.name}</span>
+      <span className="text-xs text-muted-foreground text-center">{formatFileSize(file.size)}</span>
+      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          onClick={onToggleFavorite}
+        >
+          <Star
+            className={cn(
+              'h-3 w-3',
+              isFavorite ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground'
+            )}
+          />
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-6 w-6">
+              <MoreVertical className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onPreview}>
+              <Eye className="h-4 w-4 mr-2" />
+              Preview
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onRename}>
+              <Edit className="h-4 w-4 mr-2" />
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onMove}>
+              <Move className="h-4 w-4 mr-2" />
+              Move
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onDownload}>
+              <Download className="h-4 w-4 mr-2" />
+              Download
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-destructive" onClick={onDelete}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   );
 }

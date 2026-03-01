@@ -9,7 +9,7 @@ import {
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { useInternetIdentity } from './hooks/useInternetIdentity';
 import { useActor } from './hooks/useActor';
-import { useGetCallerUserProfile, useIsCallerApproved, useIsCallerAdmin } from './hooks/useQueries';
+import { useGetCallerUserProfile, useIsCallerApproved, useRequestApproval } from './hooks/useQueries';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
@@ -19,18 +19,13 @@ import Shared from './pages/Shared';
 import Trash from './pages/Trash';
 import Settings from './pages/Settings';
 import AdminDashboard from './pages/AdminDashboard';
-import AdminPanel from './pages/AdminPanel';
 import Favorites from './pages/Favorites';
 import ProfileSetup from './components/ProfileSetup';
 import ConnectionError from './components/ConnectionError';
-import PendingApprovalPage from './pages/PendingApprovalPage';
-import RejectedPage from './pages/RejectedPage';
+import WaitingApproval from './pages/WaitingApproval';
 import { Toaster } from '@/components/ui/sonner';
 import { ThemeProvider } from 'next-themes';
 import { RecentUploadsProvider } from './contexts/RecentUploadsContext';
-
-// Hardcoded designated admin principal — this user always bypasses approval checks
-const DESIGNATED_ADMIN_PRINCIPAL = 'mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -116,13 +111,6 @@ const adminRoute = createRoute({
   component: AdminDashboard,
 });
 
-// Admin Panel route
-const adminPanelRoute = createRoute({
-  getParentRoute: () => layoutRoute,
-  path: '/admin-panel',
-  component: AdminPanel,
-});
-
 const routeTree = rootRoute.addChildren([
   loginRoute,
   layoutRoute.addChildren([
@@ -134,7 +122,6 @@ const routeTree = rootRoute.addChildren([
     trashRoute,
     settingsRoute,
     adminRoute,
-    adminPanelRoute,
   ]),
 ]);
 
@@ -151,16 +138,13 @@ const CONNECTION_TIMEOUT_MS = 15_000;
 
 function AppContent() {
   const { identity, isInitializing: identityInitializing } = useInternetIdentity();
-  const { isFetching: actorFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
   const queryClient = useQueryClient();
   const isAuthenticated = !!identity;
 
-  // Check if the current user is the designated admin by principal ID (client-side, instant)
-  const currentPrincipal = identity?.getPrincipal().toString();
-  const isDesignatedAdmin = currentPrincipal === DESIGNATED_ADMIN_PRINCIPAL;
-
   const [connectionTimedOut, setConnectionTimedOut] = useState(false);
   const [showProfileSetup, setShowProfileSetup] = useState(false);
+  const [approvalRequested, setApprovalRequested] = useState(false);
 
   const {
     data: userProfile,
@@ -168,18 +152,13 @@ function AppContent() {
     isFetched: profileFetched,
   } = useGetCallerUserProfile();
 
-  // Only run approval/admin checks for non-designated-admin users
   const {
     data: isApproved,
     isLoading: approvalLoading,
     isFetched: approvalFetched,
   } = useIsCallerApproved();
 
-  const {
-    data: isAdmin,
-    isLoading: adminLoading,
-    isFetched: adminFetched,
-  } = useIsCallerAdmin();
+  const requestApprovalMutation = useRequestApproval();
 
   // Hard timeout on actor connection
   useEffect(() => {
@@ -193,14 +172,35 @@ function AppContent() {
     return () => clearTimeout(timer);
   }, [actorFetching]);
 
-  // Show profile setup for new users
+  // Auto-request approval for first-time users (when actor is ready and user is authenticated)
   useEffect(() => {
-    if (isAuthenticated && !profileLoading && profileFetched && userProfile === null) {
+    if (
+      isAuthenticated &&
+      actor &&
+      !actorFetching &&
+      approvalFetched &&
+      !isApproved &&
+      !approvalRequested
+    ) {
+      setApprovalRequested(true);
+      requestApprovalMutation.mutate();
+    }
+  }, [isAuthenticated, actor, actorFetching, approvalFetched, isApproved, approvalRequested]);
+
+  // Show profile setup for approved users who haven't set up their profile yet
+  useEffect(() => {
+    if (
+      isAuthenticated &&
+      isApproved &&
+      !profileLoading &&
+      profileFetched &&
+      userProfile === null
+    ) {
       setShowProfileSetup(true);
     } else if (userProfile !== null && userProfile !== undefined) {
       setShowProfileSetup(false);
     }
-  }, [isAuthenticated, profileLoading, profileFetched, userProfile]);
+  }, [isAuthenticated, isApproved, profileLoading, profileFetched, userProfile]);
 
   const handleRetryConnection = () => {
     setConnectionTimedOut(false);
@@ -227,42 +227,29 @@ function AppContent() {
     return <LoginPage />;
   }
 
+  // Show loading while checking approval status
+  if (approvalLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground text-sm">Verifying account access...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Block non-approved users with the waiting screen
+  if (approvalFetched && !isApproved) {
+    return <WaitingApproval />;
+  }
+
   if (showProfileSetup) {
     return (
       <ProfileSetup
         onProfileSaved={() => setShowProfileSetup(false)}
       />
     );
-  }
-
-  // Designated admin bypasses all approval checks — go straight to the app
-  if (isDesignatedAdmin) {
-    return (
-      <>
-        <RouterProvider router={router} />
-        <Toaster richColors position="bottom-right" />
-      </>
-    );
-  }
-
-  // Wait for approval and admin checks to complete before routing for regular users
-  const checksLoading = approvalLoading || !approvalFetched || adminLoading || !adminFetched;
-  if (checksLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-muted-foreground text-sm">Verifying account status...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Admins bypass approval check
-  if (!isAdmin && !isApproved) {
-    // isCallerApproved returns false for both pending and rejected
-    // Show the pending page by default; the page itself handles the distinction
-    return <PendingApprovalPage />;
   }
 
   return (

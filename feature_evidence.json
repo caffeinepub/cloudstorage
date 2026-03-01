@@ -2,10 +2,31 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-in-the-frontend-update-the-post-login-routing-logic-in-frontend-src-app-tsx-so-that-when-the-authenticated-user-s-principal-matches-mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae-they-are-immediately-routed-to-the-admin-panel-or-home-dashboard-and-never-redirected-to-the-pendingapprovalpage-or-rejectedpage",
-      "featureTitle": "In the frontend, update the post-login routing logic in `frontend/src/App.tsx` so that when the authenticated user's principal matches `mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae`, they are immediately routed to the admin panel (or home dashboard) and never redirected to the `PendingApprovalPage` or `RejectedPage`.",
+      "featureId": "feature-restructure-the-admin-dashboard-page-frontend-src-pages-admindashboard-tsx-to-display-three-tabs-below-the-existing-stats-cards-total-users-pending-approvals-approved-users-user-management-storage-management-and-recent-activity-remove-the-currently-stacked-user-storage-management-and-recent-activity-panels-from-the-main-non-tabbed-view",
+      "featureTitle": "Restructure the Admin Dashboard page (frontend/src/pages/AdminDashboard.tsx) to display three tabs below the existing stats cards (Total Users, Pending Approvals, Approved Users): User Management, Storage Management, and Recent Activity. Remove the currently stacked User Storage Management and Recent Activity panels from the main non-tabbed view.",
       "files": [
-        "frontend/src/App.tsx"
+        "frontend/src/pages/AdminDashboard.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0",
+        "user-approval@3.0.0"
+      ],
+      "testIds": [
+        "REQ-1"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-the-user-management-tab-must-contain-both-the-pending-registrations-section-with-approve-reject-actions-for-pending-users-and-the-all-registrations-table-columns-principal-id-name-role-status-actions-the-reject-button-must-remain-hidden-for-the-admin-s-own-account-row-no-storage-management-or-activity-content-should-appear-in-this-tab",
+      "featureTitle": "The User Management tab must contain both the Pending Registrations section (with approve/reject actions for pending users) and the All Registrations table (columns: Principal ID, Name, Role, Status, Actions). The Reject button must remain hidden for the Admin's own account row. No storage management or activity content should appear in this tab.",
+      "files": [
+        "frontend/src/pages/AdminDashboard.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -19,6 +40,50 @@
       ],
       "testIds": [
         "REQ-2"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-the-storage-management-tab-must-display-the-user-storage-management-table-columns-user-used-quota-each-row-must-have-an-editable-numeric-input-field-pre-filled-with-the-current-quota-value-default-953-67-mb-so-the-admin-can-type-a-custom-quota-value-per-user-and-save-it-to-the-backend",
+      "featureTitle": "The Storage Management tab must display the User Storage Management table (columns: User, Used, Quota). Each row must have an editable numeric input field pre-filled with the current quota value (default 953.67 MB) so the Admin can type a custom quota value per user and save it to the backend.",
+      "files": [
+        "frontend/src/components/UserStorageManager.tsx",
+        "frontend/src/pages/AdminDashboard.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0",
+        "user-approval@3.0.0"
+      ],
+      "testIds": [
+        "REQ-3"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-the-recent-activity-tab-must-display-only-login-activity-entries-across-all-users-fetched-via-the-admin-login-activity-query-each-entry-should-show-the-user-identifier-principal-or-display-name-and-login-timestamp-non-login-activity-types-must-not-appear-in-this-tab",
+      "featureTitle": "The Recent Activity tab must display only login activity entries across all users fetched via the admin login activity query. Each entry should show the user identifier (principal or display name) and login timestamp. Non-login activity types must not appear in this tab.",
+      "files": [
+        "frontend/src/hooks/useQueries.ts",
+        "frontend/src/pages/AdminDashboard.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0",
+        "user-approval@3.0.0"
+      ],
+      "testIds": [
+        "REQ-5"
       ],
       "confidence": "high"
     }

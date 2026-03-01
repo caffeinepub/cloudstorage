@@ -1,51 +1,76 @@
 import React from 'react';
-import { Bell, Check, CheckCheck, Info, AlertTriangle, Share2, Activity } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Bell, BellOff, AlertTriangle, Share2, Activity, Info, CheckCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { useGetNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '../hooks/useQueries';
-import type { Notification, NotificationType } from '../hooks/useQueries';
+import { useGetNotifications, useMarkNotificationAsRead } from '../hooks/useQueries';
+import type { Notification, NotificationType } from '../backend';
 
 function getNotificationIcon(type: NotificationType) {
-  if ('storageWarning' in type) return <AlertTriangle className="w-4 h-4 text-amber-500" />;
-  if ('systemAnnouncement' in type) return <Info className="w-4 h-4 text-blue-500" />;
-  if ('shareNotification' in type) return <Share2 className="w-4 h-4 text-primary" />;
-  if ('activityAlert' in type) return <Activity className="w-4 h-4 text-purple-500" />;
-  return <Bell className="w-4 h-4 text-muted-foreground" />;
-}
-
-function getNotificationTitle(type: NotificationType): string {
-  if ('storageWarning' in type) return 'Storage Warning';
-  if ('systemAnnouncement' in type) return type.systemAnnouncement.title;
-  if ('shareNotification' in type) return `File Shared: ${type.shareNotification.fileName}`;
-  if ('activityAlert' in type) return `Activity Alert: ${type.activityAlert.fileName}`;
-  return 'Notification';
-}
-
-function getNotificationBody(type: NotificationType): string {
-  if ('storageWarning' in type) {
-    const { usedStorage, totalStorage, thresholdPercentage } = type.storageWarning;
-    return `You've used ${thresholdPercentage}% of your storage (${Number(usedStorage)} / ${Number(totalStorage)} bytes).`;
+  switch (type.__kind__) {
+    case 'storageWarning':
+      return <AlertTriangle className="h-4 w-4 text-warning shrink-0" />;
+    case 'shareNotification':
+      return <Share2 className="h-4 w-4 text-primary shrink-0" />;
+    case 'activityAlert':
+      return <Activity className="h-4 w-4 text-accent shrink-0" />;
+    case 'systemAnnouncement':
+      return <Info className="h-4 w-4 text-muted-foreground shrink-0" />;
+    default:
+      return <Bell className="h-4 w-4 text-muted-foreground shrink-0" />;
   }
-  if ('systemAnnouncement' in type) return type.systemAnnouncement.content;
-  if ('shareNotification' in type) return type.shareNotification.message || 'A file was shared with you.';
-  if ('activityAlert' in type) return `${type.activityAlert.activityType} detected on ${type.activityAlert.fileName}.`;
-  return '';
+}
+
+function getNotificationText(type: NotificationType): { title: string; body: string } {
+  switch (type.__kind__) {
+    case 'storageWarning':
+      return {
+        title: 'Storage Warning',
+        body: `You've used ${Number(type.storageWarning.thresholdPercentage)}% of your storage quota.`,
+      };
+    case 'shareNotification':
+      return {
+        title: 'File Shared',
+        body: type.shareNotification.message || `"${type.shareNotification.fileName}" was shared with you.`,
+      };
+    case 'activityAlert':
+      return {
+        title: 'Activity Alert',
+        body: `${type.activityAlert.activityType} on "${type.activityAlert.fileName}"`,
+      };
+    case 'systemAnnouncement':
+      return {
+        title: type.systemAnnouncement.title,
+        body: type.systemAnnouncement.content,
+      };
+    default:
+      return { title: 'Notification', body: '' };
+  }
+}
+
+function formatTime(timestamp: bigint): string {
+  const ms = Number(timestamp) / 1_000_000;
+  const diff = Date.now() - ms;
+  if (diff < 60_000) return 'just now';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  return `${Math.floor(diff / 86_400_000)}d ago`;
 }
 
 export default function Notifications() {
   const { data: notifications, isLoading, isError } = useGetNotifications();
-  const markRead = useMarkNotificationRead();
-  const markAllRead = useMarkAllNotificationsRead();
+  const markAsRead = useMarkNotificationAsRead();
 
   if (isLoading) {
     return (
       <div className="space-y-3">
-        {[...Array(3)].map((_, i) => (
-          <div key={i} className="flex gap-3">
-            <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+        <div className="flex items-center gap-2 mb-2">
+          <Skeleton className="h-4 w-4 rounded" />
+          <Skeleton className="h-4 w-28" />
+        </div>
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="flex gap-3 p-3 rounded-lg border border-border">
+            <Skeleton className="h-4 w-4 rounded shrink-0 mt-0.5" />
             <div className="flex-1 space-y-1.5">
-              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-32" />
               <Skeleton className="h-3 w-full" />
             </div>
           </div>
@@ -56,77 +81,56 @@ export default function Notifications() {
 
   if (isError) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-        <AlertTriangle className="w-4 h-4 text-amber-500" />
-        Failed to load notifications
+      <div className="flex items-center gap-2 p-3 rounded-lg border border-border text-sm text-muted-foreground">
+        <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+        <span>Unable to load notifications.</span>
       </div>
     );
   }
 
   if (!notifications || notifications.length === 0) {
     return (
-      <div className="text-center py-8">
-        <Bell className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground">No notifications</p>
+      <div className="flex flex-col items-center justify-center py-8 text-center">
+        <BellOff className="h-8 w-8 text-muted-foreground mb-2" />
+        <p className="text-sm text-muted-foreground">No notifications yet</p>
       </div>
     );
   }
 
-  const unreadCount = notifications.filter((n: Notification) => !n.isRead).length;
-
   return (
-    <div className="space-y-3">
-      {unreadCount > 0 && (
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">{unreadCount} unread</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={() => markAllRead.mutate()}
-            disabled={markAllRead.isPending}
+    <div className="space-y-2">
+      {notifications.map((notification) => {
+        const { title, body } = getNotificationText(notification.notificationType);
+        return (
+          <div
+            key={String(notification.id)}
+            className={`flex gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
+              notification.isRead
+                ? 'border-border bg-card'
+                : 'border-primary/30 bg-primary/5'
+            }`}
+            onClick={() => {
+              if (!notification.isRead) {
+                markAsRead.mutate(notification.id);
+              }
+            }}
           >
-            <CheckCheck className="w-3.5 h-3.5 mr-1" />
-            Mark all read
-          </Button>
-        </div>
-      )}
-
-      <ScrollArea className="max-h-64">
-        <div className="space-y-2 pr-2">
-          {notifications.map((notification: Notification) => (
-            <div
-              key={notification.id.toString()}
-              className={`flex gap-3 p-3 rounded-lg transition-colors ${
-                notification.isRead ? 'bg-muted/20' : 'bg-primary/5 border border-primary/10'
-              }`}
-            >
-              <div className="shrink-0 mt-0.5">
-                {getNotificationIcon(notification.notificationType)}
+            <div className="mt-0.5">{getNotificationIcon(notification.notificationType)}</div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-foreground truncate">{title}</p>
+                <span className="text-xs text-muted-foreground shrink-0">
+                  {formatTime(notification.timestamp)}
+                </span>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">
-                  {getNotificationTitle(notification.notificationType)}
-                </p>
-                <p className="text-xs text-muted-foreground line-clamp-2">
-                  {getNotificationBody(notification.notificationType)}
-                </p>
-              </div>
-              {!notification.isRead && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 shrink-0"
-                  onClick={() => markRead.mutate(notification.id)}
-                  title="Mark as read"
-                >
-                  <Check className="w-3 h-3" />
-                </Button>
-              )}
+              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{body}</p>
             </div>
-          ))}
-        </div>
-      </ScrollArea>
+            {!notification.isRead && (
+              <div className="h-2 w-2 rounded-full bg-primary shrink-0 mt-1.5" />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

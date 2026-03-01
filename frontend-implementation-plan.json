@@ -1,21 +1,82 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Hardcode admin principal ID to bypass approval flow",
+  "title": "Reorganize Admin Dashboard into 3 tabs: User Management, Storage Management, Recent Activity",
   "requirements": [
     {
-      "id": "REQ-2",
-      "summary": "Update frontend routing logic to bypass approval checks for hardcoded admin principal",
+      "id": "REQ-1",
+      "summary": "Restructure the Admin Dashboard page to display three tabs below the existing stats cards, removing the currently stacked User Storage Management and Recent Activity panels from the main non-tabbed view",
       "acceptanceCriteria": [
-        "Logging in with the admin principal does not show the 'Account Pending Approval' screen.",
-        "The admin principal is redirected directly to the admin dashboard or home page after login.",
-        "Non-admin principals still see the pending approval or rejected pages as appropriate."
+        "The Admin Dashboard shows the three stat cards at the top unchanged.",
+        "Three tabs are rendered below the stat cards: User Management, Storage Management, Recent Activity.",
+        "The User Storage Management panel and Recent Activity panel are no longer displayed as stacked sections outside the tabs."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/App.tsx",
+          "path": "frontend/src/pages/AdminDashboard.tsx",
           "operation": "modify",
-          "description": "Modify the post-login routing logic to check if the authenticated user's principal matches `mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae`. If it matches, route directly to the home dashboard without calling isCallerApproved or checking approval status. Ensure non-admin users continue through the existing approval flow (PendingApprovalPage or RejectedPage). The hardcoded principal string must be exact and unaltered."
+          "description": "Add a Tabs component from shadcn/ui below the three stat cards (Total Users, Pending Approvals, Approved Users). Create three TabsTrigger elements labeled 'User Management', 'Storage Management', and 'Recent Activity'. Remove the existing grid layout that displays UserStorageManager and RecentActivityCard as stacked sections. Wrap each tab content in a TabsContent component."
+        }
+      ]
+    },
+    {
+      "id": "REQ-2",
+      "summary": "The User Management tab must contain both the Pending Registrations section and the All Registrations table with approve/reject actions, hiding the Reject button for the Admin's own account row",
+      "acceptanceCriteria": [
+        "The User Management tab shows the Pending Registrations section with approve/reject actions.",
+        "The All Registrations table displays columns: Principal ID, Name, Role, Status, Actions.",
+        "The Reject button is hidden for the logged-in Admin's own row.",
+        "No storage management or activity content appears in this tab."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/pages/AdminDashboard.tsx",
+          "operation": "modify",
+          "description": "Inside the User Management TabsContent, render the existing Pending Registrations section (including the title, description, pending users list, approve/reject buttons, and empty state) followed by the All Registrations section (title, description, and the administrations table with columns Principal ID, Name, Role, Status, Actions). Ensure the Reject button remains hidden when the row principal matches the current user's principal. Do not include any storage or activity content in this tab."
+        }
+      ]
+    },
+    {
+      "id": "REQ-3",
+      "summary": "The Storage Management tab must display the User Storage Management table with editable numeric quota input fields pre-filled with the current quota value (default 953.67 MB) so the Admin can type and save custom quota values per user",
+      "acceptanceCriteria": [
+        "The Storage Management tab shows a table with columns: User, Used, Quota.",
+        "Each row's Quota cell contains an editable numeric input pre-filled with the current quota value, defaulting to 953.67 MB.",
+        "The Admin can type a new numeric quota value and save it per user.",
+        "Saving the new quota calls the backend quota-setting method and persists the change."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/pages/AdminDashboard.tsx",
+          "operation": "modify",
+          "description": "Inside the Storage Management TabsContent, render the UserStorageManager component which already provides a table with columns User, Used, and Quota. Ensure the component allows editing individual user quotas via a numeric input field and persists changes using the setUserQuota backend method."
+        },
+        {
+          "path": "frontend/src/components/UserStorageManager.tsx",
+          "operation": "modify",
+          "description": "Update the Quota column to display an editable numeric input field for each user row, pre-filled with the current quota value (default 953.67 MB). Add an inline save button or auto-save mechanism that calls the useSetUserQuota mutation with the user principal and new quota value. Display a loading indicator during save and show a toast message on success or error. Ensure the quota input accepts numeric values and validates before saving."
+        }
+      ]
+    },
+    {
+      "id": "REQ-5",
+      "summary": "The Recent Activity tab must display only login activity entries across all users fetched via the admin login activity query, showing user identifier and login timestamp with no non-login activity types",
+      "acceptanceCriteria": [
+        "The Recent Activity tab shows login events only.",
+        "Each entry displays the user identifier and timestamp.",
+        "No upload, delete, restore, or share events appear in this tab.",
+        "A loading state is shown while fetching and an empty state message is shown when there are no login entries."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/pages/AdminDashboard.tsx",
+          "operation": "modify",
+          "description": "Inside the Recent Activity TabsContent, render a section that displays login activity entries only. Use the useGetLoginLogTable query hook (which fetches from the admin-only backend method getLoginLogTable) to retrieve login events. Map over the returned ActivityLog entries and display each entry with the user principal (or name if available from getUserProfile), login timestamp formatted as relative time, and a login-specific icon. Show a loading skeleton while the query is fetching, and display an empty state message ('No login activity yet') when the array is empty. Do not display any upload, delete, restore, or share activity types in this tab."
+        },
+        {
+          "path": "frontend/src/hooks/useQueries.ts",
+          "operation": "modify",
+          "description": "Add a new React Query hook useGetLoginLogTable that calls actor.getLoginLogTable() and returns an array of ActivityLog entries. Set the queryKey to ['loginLogTable'] and mark the query as enabled only when the actor is available. Include standard error handling and retry logic consistent with other query hooks in this file."
         }
       ]
     }

@@ -9,10 +9,8 @@ import {
   Settings,
   Shield,
   Star,
-  Users,
 } from 'lucide-react';
 import StorageQuotaIndicator from './StorageQuotaIndicator';
-import { useIsCallerAdmin } from '../hooks/useQueries';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -35,7 +33,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
   const navigate = useNavigate();
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
-  const { data: isAdmin } = useIsCallerAdmin();
 
   const isActive = (path: string) => currentPath === path || currentPath.startsWith(path + '/');
 
@@ -94,27 +91,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
                 </button>
               </li>
             ))}
-
-            {/* Admin Panel link — only visible to admins */}
-            {isAdmin && (
-              <li>
-                <button
-                  onClick={() => navigate({ to: '/admin-panel' })}
-                  className={`
-                    w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                    transition-colors duration-150
-                    ${
-                      isActive('/admin-panel')
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                    }
-                  `}
-                >
-                  <Users className="h-4 w-4 shrink-0" />
-                  <span className="truncate">User Approvals</span>
-                </button>
-              </li>
-            )}
           </ul>
         </div>
       </nav>

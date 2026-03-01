@@ -1,51 +1,93 @@
-import React from 'react';
+import { useState } from 'react';
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { TrashMetadata } from '../hooks/useQueries';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { AlertTriangle } from 'lucide-react';
+import type { TrashMetadata } from '../backend';
 
 interface DeleteConfirmationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  items: TrashMetadata[];
-  onConfirm: () => void;
-  isLoading?: boolean;
+  selectedItems: TrashMetadata[];
+  onConfirm: (secureWipe: boolean) => void;
+  isEmptyTrash?: boolean;
 }
 
 export default function DeleteConfirmationDialog({
   open,
   onOpenChange,
-  items,
+  selectedItems,
   onConfirm,
-  isLoading,
+  isEmptyTrash = false,
 }: DeleteConfirmationDialogProps) {
+  const [secureWipe, setSecureWipe] = useState(false);
+
+  const totalSize = selectedItems.reduce((acc, item) => acc + Number(item.metadata.size), 0);
+  const formatSize = (bytes: number) => {
+    const mb = bytes / (1024 * 1024);
+    if (mb < 1024) return `${mb.toFixed(2)} MB`;
+    return `${(mb / 1024).toFixed(2)} GB`;
+  };
+
+  const handleConfirm = () => {
+    onConfirm(secureWipe);
+    setSecureWipe(false);
+  };
+
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Permanently Delete Files?</AlertDialogTitle>
-          <AlertDialogDescription>
-            {items.length === 1
-              ? `This will permanently delete "${items[0]?.metadata?.name ?? 'this file'}". This action cannot be undone.`
-              : `This will permanently delete ${items.length} files. This action cannot be undone.`}
+          <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="h-5 w-5" />
+            {isEmptyTrash ? 'Empty Trash?' : 'Permanently Delete Files?'}
+          </AlertDialogTitle>
+          <AlertDialogDescription className="space-y-3">
+            <p className="font-semibold">
+              This action cannot be undone. The following will be permanently deleted:
+            </p>
+            <div className="bg-muted p-3 rounded-md">
+              <p className="text-sm">
+                <strong>Files:</strong> {selectedItems.length}
+              </p>
+              <p className="text-sm">
+                <strong>Total Size:</strong> {formatSize(totalSize)}
+              </p>
+            </div>
+            {!isEmptyTrash && selectedItems.length <= 5 && (
+              <ul className="text-sm space-y-1 list-disc list-inside">
+                {selectedItems.map((item) => (
+                  <li key={item.fileId}>{item.metadata.name}</li>
+                ))}
+              </ul>
+            )}
+            <div className="flex items-center space-x-2 pt-2">
+              <Checkbox
+                id="secureWipe"
+                checked={secureWipe}
+                onCheckedChange={(checked) => setSecureWipe(checked as boolean)}
+              />
+              <Label htmlFor="secureWipe" className="text-sm cursor-pointer">
+                Secure wipe (cryptographically secure deletion for sensitive files)
+              </Label>
+            </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={onConfirm}
-            disabled={isLoading}
-            className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-          >
-            {isLoading ? 'Deleting...' : 'Delete Permanently'}
-          </AlertDialogAction>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={handleConfirm}>
+            Delete Permanently
+          </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

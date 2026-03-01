@@ -1,138 +1,211 @@
 import React, { useState } from 'react';
 import { useListAllUsersStorage, useSetUserQuota } from '../hooks/useQueries';
-import { HardDrive, Edit2, Check, X, AlertTriangle } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Progress } from '@/components/ui/progress';
-import { Principal } from '@icp-sdk/core/principal';
 import { toast } from 'sonner';
+import { Progress } from '@/components/ui/progress';
+import { Save, HardDrive } from 'lucide-react';
+import { Principal } from '@dfinity/principal';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// Default quota in MB (953.67 MB ≈ 100,000,000 bytes)
+const DEFAULT_QUOTA_MB = 953.67;
 
 export default function UserStorageManager() {
-  const { data: usersStorage, isLoading, isError } = useListAllUsersStorage();
-  const setQuotaMutation = useSetUserQuota();
-  const [editingUser, setEditingUser] = useState<string | null>(null);
-  const [newQuotaGB, setNewQuotaGB] = useState('');
+  const { data: usersStorage, isLoading } = useListAllUsersStorage();
+  const setUserQuota = useSetUserQuota();
 
-  const handleEditStart = (userPrincipal: string, currentTotalBytes: bigint) => {
-    setEditingUser(userPrincipal);
-    setNewQuotaGB((Number(currentTotalBytes) / (1024 * 1024 * 1024)).toFixed(1));
+  // Track per-row quota input values: principalStr -> MB string
+  const [quotaInputs, setQuotaInputs] = useState<Record<string, string>>({});
+  // Track which rows are currently saving
+  const [savingRows, setSavingRows] = useState<Record<string, boolean>>({});
+
+  const getQuotaInput = (principalStr: string, currentQuotaMB: number): string => {
+    if (principalStr in quotaInputs) {
+      return quotaInputs[principalStr];
+    }
+    return currentQuotaMB.toFixed(2);
   };
 
-  const handleEditSave = async (userPrincipal: string) => {
-    const gb = parseFloat(newQuotaGB);
-    if (isNaN(gb) || gb <= 0) {
-      toast.error('Please enter a valid quota in GB');
+  const handleQuotaChange = (principalStr: string, value: string) => {
+    setQuotaInputs((prev) => ({ ...prev, [principalStr]: value }));
+  };
+
+  const handleSaveQuota = async (principal: Principal) => {
+    const principalStr = principal.toString();
+    const inputVal = quotaInputs[principalStr];
+    if (inputVal === undefined) return;
+
+    const quotaMB = parseFloat(inputVal);
+    if (isNaN(quotaMB) || quotaMB <= 0) {
+      toast.error('Please enter a valid quota in MB');
       return;
     }
-    try {
-      await setQuotaMutation.mutateAsync({
-        user: Principal.fromText(userPrincipal),
-        quota: BigInt(Math.round(gb * 1024 * 1024 * 1024)),
-      });
-      toast.success('Storage quota updated');
-      setEditingUser(null);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to update quota';
-      toast.error(message);
-    }
-  };
 
-  const handleEditCancel = () => {
-    setEditingUser(null);
-    setNewQuotaGB('');
+    setSavingRows((prev) => ({ ...prev, [principalStr]: true }));
+    try {
+      const quotaBytes = BigInt(Math.floor(quotaMB * 1024 * 1024));
+      await setUserQuota.mutateAsync({ user: principal, quota: quotaBytes });
+      toast.success('Quota updated successfully');
+      // Clear the local override so it re-reads from backend
+      setQuotaInputs((prev) => {
+        const next = { ...prev };
+        delete next[principalStr];
+        return next;
+      });
+    } catch {
+      toast.error('Failed to update quota');
+    } finally {
+      setSavingRows((prev) => ({ ...prev, [principalStr]: false }));
+    }
   };
 
   if (isLoading) {
     return (
-      <div className="space-y-3">
-        {[...Array(3)].map((_, i) => (
-          <Skeleton key={i} className="h-16 w-full rounded-lg" />
-        ))}
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-        <AlertTriangle className="w-4 h-4 text-amber-500" />
-        Failed to load user storage data
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <HardDrive className="h-5 w-5" />
+            User Storage Management
+          </CardTitle>
+          <CardDescription>Manage storage quotas for individual users</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center gap-4">
+                <Skeleton className="h-4 flex-1" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-8 w-32" />
+                <Skeleton className="h-8 w-16" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
   if (!usersStorage || usersStorage.length === 0) {
     return (
-      <div className="text-center py-8">
-        <HardDrive className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground">No user storage data available</p>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <HardDrive className="h-5 w-5" />
+            User Storage Management
+          </CardTitle>
+          <CardDescription>Manage storage quotas for individual users</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <HardDrive className="h-10 w-10 text-muted-foreground mb-3" />
+            <p className="text-sm text-muted-foreground">No users found</p>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="space-y-3">
-      {usersStorage.map((entry) => {
-        const principalStr = entry.user.toString();
-        const usedGB = (Number(entry.used) / (1024 * 1024 * 1024)).toFixed(2);
-        const totalGB = (Number(entry.total) / (1024 * 1024 * 1024)).toFixed(1);
-        const isEditing = editingUser === principalStr;
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <HardDrive className="h-5 w-5" />
+          User Storage Management
+        </CardTitle>
+        <CardDescription>
+          Manage storage quotas for individual users. Type a new value in MB and click Save.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>User</TableHead>
+              <TableHead>Used</TableHead>
+              <TableHead>Usage</TableHead>
+              <TableHead>Quota (MB)</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {usersStorage.map(([principal, used, quota]) => {
+              const usedMB = Number(used) / (1024 * 1024);
+              const quotaMB = Number(quota) / (1024 * 1024);
+              // Use DEFAULT_QUOTA_MB if quota is 0 or very small (unset)
+              const displayQuotaMB = quotaMB < 0.01 ? DEFAULT_QUOTA_MB : quotaMB;
+              const percentage = displayQuotaMB > 0 ? (usedMB / displayQuotaMB) * 100 : 0;
+              const principalStr = principal.toString();
+              const inputValue = getQuotaInput(principalStr, displayQuotaMB);
+              const isSaving = savingRows[principalStr] ?? false;
+              const isDirty = principalStr in quotaInputs;
 
-        return (
-          <div key={principalStr} className="p-3 rounded-lg border border-border bg-card">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-mono text-muted-foreground truncate max-w-[200px]">
-                {principalStr.slice(0, 20)}...
-              </p>
-              {isEditing ? (
-                <div className="flex items-center gap-1">
-                  <Input
-                    type="number"
-                    value={newQuotaGB}
-                    onChange={(e) => setNewQuotaGB(e.target.value)}
-                    className="h-7 w-20 text-xs"
-                    placeholder="GB"
-                    min="0.1"
-                    step="0.1"
-                  />
-                  <span className="text-xs text-muted-foreground">GB</span>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7"
-                    onClick={() => handleEditSave(principalStr)}
-                    disabled={setQuotaMutation.isPending}
-                  >
-                    <Check className="w-3.5 h-3.5 text-emerald-500" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7"
-                    onClick={handleEditCancel}
-                  >
-                    <X className="w-3.5 h-3.5 text-destructive" />
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7"
-                  onClick={() => handleEditStart(principalStr, entry.total)}
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                </Button>
-              )}
-            </div>
-            <Progress value={entry.percentage} className="h-1.5 mb-1" />
-            <p className="text-xs text-muted-foreground">
-              {usedGB} GB used of {totalGB} GB ({entry.percentage.toFixed(1)}%)
-            </p>
-          </div>
-        );
-      })}
-    </div>
+              return (
+                <TableRow key={principalStr}>
+                  <TableCell>
+                    <div>
+                      <p className="font-medium text-sm">User</p>
+                      <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                        {principalStr}
+                      </p>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-sm whitespace-nowrap">
+                    {usedMB.toFixed(2)} MB
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Progress
+                        value={Math.min(percentage, 100)}
+                        className="h-2 w-24"
+                      />
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {percentage.toFixed(0)}%
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      min="1"
+                      step="0.01"
+                      value={inputValue}
+                      onChange={(e) => handleQuotaChange(principalStr, e.target.value)}
+                      className="w-32 h-8 text-sm"
+                      disabled={isSaving}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="sm"
+                      variant={isDirty ? 'default' : 'outline'}
+                      onClick={() => handleSaveQuota(principal)}
+                      disabled={isSaving || !isDirty}
+                      className="gap-1"
+                    >
+                      {isSaving ? (
+                        <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Save className="h-3.5 w-3.5" />
+                      )}
+                      {isSaving ? 'Saving...' : 'Save'}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   );
 }

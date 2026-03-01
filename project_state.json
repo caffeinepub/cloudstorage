@@ -1,18 +1,43 @@
 {
   "schemaVersion": "1.0.0",
   "projectStateVersion": 3,
-  "summary": "App with login flow and admin approval panel. Admin is identified by a hardcoded Internet Identity principal ID (mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae). The app is deployed on the Internet Computer (ICP) network.",
+  "summary": "Admin dashboard app with user management, storage quota assignment, and recent activity tracking. Features include role-based access (Admin/User), registration approval/rejection, and tabbed admin interface.",
   "architectural_notes": [
-    "Admin is identified by a hardcoded Internet Identity principal ID: mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae. Admin bypasses the approval flow and goes directly to the admin panel."
+    "Admin Dashboard uses tabbed layout below stats: User Management, Storage Management, Recent Activity",
+    "Role-based access: Reject button hidden for Admin accounts; Name and Role columns shown in All Registrations table"
   ],
   "known_issues": [],
-  "isFixRequest": true,
+  "isFixRequest": false,
   "existing_features": [
     {
-      "id": "feature-in-the-frontend-update-the-post-login-routing-logic-in-frontend-src-app-tsx-so-that-when-the-authenticated-user-s-principal-matches-mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae-they-are-immediately-routed-to-the-admin-panel-or-home-dashboard-and-never-redirected-to-the-pendingapprovalpage-or-rejectedpage",
-      "title": "In the frontend, update the post-login routing logic in `frontend/src/App.tsx` so that when the authenticated user's principal matches `mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae`, they are immediately routed to the admin panel (or home dashboard) and never redirected to the `PendingApprovalPage` or `RejectedPage`.",
+      "id": "feature-restructure-the-admin-dashboard-page-frontend-src-pages-admindashboard-tsx-to-display-three-tabs-below-the-existing-stats-cards-total-users-pending-approvals-approved-users-user-management-storage-management-and-recent-activity-remove-the-currently-stacked-user-storage-management-and-recent-activity-panels-from-the-main-non-tabbed-view",
+      "title": "Restructure the Admin Dashboard page (frontend/src/pages/AdminDashboard.tsx) to display three tabs below the existing stats cards (Total Users, Pending Approvals, Approved Users): User Management, Storage Management, and Recent Activity. Remove the currently stacked User Storage Management and Recent Activity panels from the main non-tabbed view.",
+      "reqIds": [
+        "REQ-1"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-the-user-management-tab-must-contain-both-the-pending-registrations-section-with-approve-reject-actions-for-pending-users-and-the-all-registrations-table-columns-principal-id-name-role-status-actions-the-reject-button-must-remain-hidden-for-the-admin-s-own-account-row-no-storage-management-or-activity-content-should-appear-in-this-tab",
+      "title": "The User Management tab must contain both the Pending Registrations section (with approve/reject actions for pending users) and the All Registrations table (columns: Principal ID, Name, Role, Status, Actions). The Reject button must remain hidden for the Admin's own account row. No storage management or activity content should appear in this tab.",
       "reqIds": [
         "REQ-2"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-the-storage-management-tab-must-display-the-user-storage-management-table-columns-user-used-quota-each-row-must-have-an-editable-numeric-input-field-pre-filled-with-the-current-quota-value-default-953-67-mb-so-the-admin-can-type-a-custom-quota-value-per-user-and-save-it-to-the-backend",
+      "title": "The Storage Management tab must display the User Storage Management table (columns: User, Used, Quota). Each row must have an editable numeric input field pre-filled with the current quota value (default 953.67 MB) so the Admin can type a custom quota value per user and save it to the backend.",
+      "reqIds": [
+        "REQ-3"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-the-recent-activity-tab-must-display-only-login-activity-entries-across-all-users-fetched-via-the-admin-login-activity-query-each-entry-should-show-the-user-identifier-principal-or-display-name-and-login-timestamp-non-login-activity-types-must-not-appear-in-this-tab",
+      "title": "The Recent Activity tab must display only login activity entries across all users fetched via the admin login activity query. Each entry should show the user identifier (principal or display name) and login timestamp. Non-login activity types must not appear in this tab.",
+      "reqIds": [
+        "REQ-5"
       ],
       "version": 1
     }
@@ -20,15 +45,33 @@
   "new_feature_requests": [
     {
       "id": "AR-1",
-      "summary": "In the backend, hardcode the principal `mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae` as the designated admin. Any `isAdmin` check must return `true` for this principal without requiring any approval record. This principal must never be subject to the approval flow — it should always be treated as fully approved and as an admin regardless of any stored approval state.",
+      "summary": "Add User Management tab to Admin section: includes Pending Registrations and All Registrations table (with Principal ID, Name, Role, Status, Actions; Reject hidden for Admin), without User Storage Management or Recent Activity panels",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-2",
+      "summary": "Add Storage Management tab: shows User Storage Management table, Admin can type custom quota value per user (default 953.67 MB pre-filled)",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-3",
+      "summary": "Add Recent Activity tab: shows only login activity across all users",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-7",
+      "summary": "Record a login activity entry in the ActivityLog each time a user successfully authenticates or is granted access, and expose an admin-only query to retrieve all login activity entries across all users (fields: user principal, timestamp, action type login).",
       "reqIds": [
-        "REQ-1"
+        "REQ-4"
       ],
       "status": "pending"
     }
   ],
   "gameProjectType": "none",
-  "projectName": "CloudStorage",
+  "projectName": "CloudStorage Admin",
   "clarification_mode": "instant",
   "clarification_rounds": 0
 }

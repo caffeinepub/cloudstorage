@@ -1,60 +1,114 @@
 {
   "kind": "build_request",
-  "title": "Hardcode admin principal ID to bypass approval flow",
-  "projectName": "CloudStorage",
-  "priority": "high",
+  "title": "Reorganize Admin Dashboard into 3 tabs: User Management, Storage Management, Recent Activity",
+  "projectName": "CloudStorage Admin",
+  "priority": "normal",
   "requirements": [
     {
       "id": "REQ-1",
-      "text": "In the backend, hardcode the principal `mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae` as the designated admin. Any `isAdmin` check must return `true` for this principal without requiring any approval record. This principal must never be subject to the approval flow — it should always be treated as fully approved and as an admin regardless of any stored approval state.",
-      "target": "backend",
+      "text": "Restructure the Admin Dashboard page (frontend/src/pages/AdminDashboard.tsx) to display three tabs below the existing stats cards (Total Users, Pending Approvals, Approved Users): User Management, Storage Management, and Recent Activity. Remove the currently stacked User Storage Management and Recent Activity panels from the main non-tabbed view.",
+      "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-6",
-          "msg-7"
+          "msg-recent-1"
         ],
         "quotes": [
-          "The admin be identified with Internet Identy principal ID.",
-          "mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae — is this the principal that should be granted admin access?",
-          "yes"
+          "keeps all, but without User Storage Management and Recent Activity"
         ]
       },
       "acceptanceCriteria": [
-        "The principal `mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae` is defined as a hardcoded constant in the backend actor.",
-        "Calling `isAdmin` with this principal returns `true`.",
-        "The admin principal bypasses all approval status checks and is never placed in a pending or rejected state.",
-        "All other principals continue to go through the normal approval flow."
+        "The Admin Dashboard shows the three stat cards at the top unchanged.",
+        "Three tabs are rendered below the stat cards: User Management, Storage Management, Recent Activity.",
+        "The User Storage Management panel and Recent Activity panel are no longer displayed as stacked sections outside the tabs."
       ]
     },
     {
       "id": "REQ-2",
-      "text": "In the frontend, update the post-login routing logic in `frontend/src/App.tsx` so that when the authenticated user's principal matches `mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae`, they are immediately routed to the admin panel (or home dashboard) and never redirected to the `PendingApprovalPage` or `RejectedPage`.",
+      "text": "The User Management tab must contain both the Pending Registrations section (with approve/reject actions for pending users) and the All Registrations table (columns: Principal ID, Name, Role, Status, Actions). The Reject button must remain hidden for the Admin's own account row. No storage management or activity content should appear in this tab.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-6",
-          "msg-7"
+          "msg-recent-1"
         ],
         "quotes": [
-          "The app not regonized me as admin?",
-          "yes"
+          "keeps all, but without User Storage Management and Recent Activity"
         ]
       },
       "acceptanceCriteria": [
-        "Logging in with the admin principal does not show the 'Account Pending Approval' screen.",
-        "The admin principal is redirected directly to the admin dashboard or home page after login.",
-        "Non-admin principals still see the pending approval or rejected pages as appropriate."
+        "The User Management tab shows the Pending Registrations section with approve/reject actions.",
+        "The All Registrations table displays columns: Principal ID, Name, Role, Status, Actions.",
+        "The Reject button is hidden for the logged-in Admin's own row.",
+        "No storage management or activity content appears in this tab."
+      ]
+    },
+    {
+      "id": "REQ-3",
+      "text": "The Storage Management tab must display the User Storage Management table (columns: User, Used, Quota). Each row must have an editable numeric input field pre-filled with the current quota value (default 953.67 MB) so the Admin can type a custom quota value per user and save it to the backend.",
+      "target": "both",
+      "source": {
+        "messageIds": [
+          "msg-recent-1"
+        ],
+        "quotes": [
+          "should the Admin be able to set custom values per user by typing in a number"
+        ]
+      },
+      "acceptanceCriteria": [
+        "The Storage Management tab shows a table with columns: User, Used, Quota.",
+        "Each row's Quota cell contains an editable numeric input pre-filled with the current quota value, defaulting to 953.67 MB.",
+        "The Admin can type a new numeric quota value and save it per user.",
+        "Saving the new quota calls the backend quota-setting method and persists the change."
+      ]
+    },
+    {
+      "id": "REQ-4",
+      "text": "Record a login activity entry in the ActivityLog each time a user successfully authenticates or is granted access, and expose an admin-only query to retrieve all login activity entries across all users (fields: user principal, timestamp, action type login).",
+      "target": "backend",
+      "source": {
+        "messageIds": [
+          "msg-recent-1"
+        ],
+        "quotes": [
+          "only logins"
+        ]
+      },
+      "acceptanceCriteria": [
+        "A login activity entry is stored in the ActivityLog when a user authenticates.",
+        "An admin-only query returns login activity entries for all users.",
+        "Non-admin callers cannot access the full login activity list."
+      ]
+    },
+    {
+      "id": "REQ-5",
+      "text": "The Recent Activity tab must display only login activity entries across all users fetched via the admin login activity query. Each entry should show the user identifier (principal or display name) and login timestamp. Non-login activity types must not appear in this tab.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-recent-1"
+        ],
+        "quotes": [
+          "only logins"
+        ]
+      },
+      "acceptanceCriteria": [
+        "The Recent Activity tab shows login events only.",
+        "Each entry displays the user identifier and timestamp.",
+        "No upload, delete, restore, or share events appear in this tab.",
+        "A loading state is shown while fetching and an empty state message is shown when there are no login entries."
       ]
     }
   ],
   "constraints": [
-    "The admin principal ID must be exactly `mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae` — do not alter or truncate it.",
-    "Do not modify files under frontend/src/hooks/useInternetIdentity.ts or any other immutable paths."
+    "Do not remove or change the three stat cards (Total Users, Pending Approvals, Approved Users) at the top of the Admin Dashboard.",
+    "The Reject button must remain hidden for the Admin's own account row in the All Registrations table.",
+    "The default pre-filled quota value for Storage Management must be 953.67 MB.",
+    "All Motoko logic must remain in the single main actor file backend/main.mo."
   ],
   "nonGoals": [
-    "Adding a UI to configure or change the admin principal at runtime.",
-    "Supporting multiple hardcoded admin principals.",
-    "Changing the approval flow for non-admin users."
+    "Adding new columns or actions to the All Registrations table beyond Principal ID, Name, Role, Status, Actions.",
+    "Showing non-login activity types in the Recent Activity tab.",
+    "Changing sidebar navigation or any routes outside the Admin Dashboard page.",
+    "Modifying any immutable frontend paths."
   ],
   "imageRequirements": {
     "required": [],
