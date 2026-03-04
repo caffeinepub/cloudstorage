@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -6,18 +6,18 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Info } from 'lucide-react';
-import type { FileMetadata } from '../backend';
+} from "@/components/ui/select";
+import { Info } from "lucide-react";
+import { useState } from "react";
+import type { FileMetadata } from "../backend";
 
 interface DeleteFileDialogProps {
   open: boolean;
@@ -32,18 +32,18 @@ export default function DeleteFileDialog({
   file,
   onConfirm,
 }: DeleteFileDialogProps) {
-  const [retentionPeriod, setRetentionPeriod] = useState<string>('default');
+  const [retentionPeriod, setRetentionPeriod] = useState<string>("default");
 
   const handleConfirm = () => {
     let customPeriod: bigint | null = null;
-    
-    if (retentionPeriod !== 'default') {
-      const days = parseInt(retentionPeriod);
+
+    if (retentionPeriod !== "default") {
+      const days = Number.parseInt(retentionPeriod);
       customPeriod = BigInt(days * 24 * 60 * 60 * 1000000000); // Convert days to nanoseconds
     }
-    
+
     onConfirm(customPeriod);
-    setRetentionPeriod('default');
+    setRetentionPeriod("default");
   };
 
   if (!file) return null;
@@ -62,8 +62,8 @@ export default function DeleteFileDialog({
           <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-md flex items-start gap-2">
             <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
             <p className="text-sm text-blue-900 dark:text-blue-100">
-              Files in Trash can be restored from the Trash page before they are automatically
-              deleted after the retention period expires.
+              Files in Trash can be restored from the Trash page before they are
+              automatically deleted after the retention period expires.
             </p>
           </div>
 
@@ -81,7 +81,8 @@ export default function DeleteFileDialog({
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Choose how long the file will be kept in Trash before automatic deletion
+              Choose how long the file will be kept in Trash before automatic
+              deletion
             </p>
           </div>
         </div>

@@ -1,65 +1,108 @@
-import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { Home, FolderOpen, Share2, Clock, Trash2, Settings, Shield } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import StorageQuotaIndicator from './StorageQuotaIndicator';
-import { useGetCallerUserRole } from '../hooks/useQueries';
+import { useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  Clock,
+  FolderOpen,
+  Home,
+  Settings,
+  Share2,
+  Shield,
+  Star,
+  Trash2,
+} from "lucide-react";
+import type React from "react";
+import StorageQuotaIndicator from "./StorageQuotaIndicator";
 
 interface SidebarProps {
   isOpen: boolean;
 }
 
-export default function Sidebar({ isOpen }: SidebarProps) {
+const navItems = [
+  { path: "/dashboard", label: "My Files", icon: FolderOpen },
+  { path: "/favorites", label: "Favorites", icon: Star },
+  { path: "/recent", label: "Recent", icon: Clock },
+  { path: "/shared", label: "Shared", icon: Share2 },
+  { path: "/trash", label: "Trash", icon: Trash2 },
+];
+
+const bottomNavItems = [
+  { path: "/settings", label: "Settings", icon: Settings },
+  { path: "/admin", label: "Admin", icon: Shield },
+];
+
+const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
   const navigate = useNavigate();
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
-  const { data: userRole } = useGetCallerUserRole();
 
-  const isAdmin = userRole === 'admin';
-
-  const menuItems = [
-    { icon: Home, label: 'Home', path: '/' },
-    { icon: FolderOpen, label: 'My Files', path: '/dashboard' },
-    { icon: Share2, label: 'Shared', path: '/dashboard' },
-    { icon: Clock, label: 'Recent', path: '/dashboard' },
-    { icon: Trash2, label: 'Trash', path: '/trash' },
-    { icon: Settings, label: 'Settings', path: '/settings' },
-  ];
-
-  if (isAdmin) {
-    menuItems.push({ icon: Shield, label: 'Admin', path: '/admin' });
-  }
+  const isActive = (path: string) =>
+    currentPath === path || currentPath.startsWith(`${path}/`);
 
   return (
     <aside
-      className={cn(
-        'fixed left-0 top-16 h-[calc(100vh-4rem)] bg-card border-r border-border transition-all duration-300 z-40',
-        isOpen ? 'w-64' : 'w-0 -translate-x-full'
-      )}
+      className={`
+        fixed left-0 top-16 h-[calc(100vh-4rem)] z-30
+        flex flex-col
+        bg-card border-r border-border
+        transition-all duration-300 ease-in-out
+        ${isOpen ? "w-56 translate-x-0" : "w-0 -translate-x-full md:w-56 md:translate-x-0"}
+        overflow-hidden
+      `}
     >
-      <div className="flex flex-col h-full p-4">
-        <nav className="flex-1 space-y-1">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = currentPath === item.path;
-            return (
-              <Button
-                key={item.path + item.label}
-                variant={isActive ? 'secondary' : 'ghost'}
-                className={cn('w-full justify-start', isActive && 'bg-accent')}
-                onClick={() => navigate({ to: item.path })}
+      <nav className="flex-1 overflow-y-auto py-4 px-3">
+        <ul className="space-y-1">
+          {navItems.map(({ path, label, icon: Icon }) => (
+            <li key={path}>
+              <button
+                type="button"
+                onClick={() => navigate({ to: path })}
+                className={`
+                  w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                  transition-colors duration-150
+                  ${
+                    isActive(path)
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }
+                `}
               >
-                <Icon className="mr-3 h-5 w-5" />
-                {item.label}
-              </Button>
-            );
-          })}
-        </nav>
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{label}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
 
-        <div className="mt-auto pt-4 border-t border-border">
-          <StorageQuotaIndicator />
+        <div className="mt-6 pt-4 border-t border-border">
+          <ul className="space-y-1">
+            {bottomNavItems.map(({ path, label, icon: Icon }) => (
+              <li key={path}>
+                <button
+                  type="button"
+                  onClick={() => navigate({ to: path })}
+                  className={`
+                    w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                    transition-colors duration-150
+                    ${
+                      isActive(path)
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }
+                  `}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{label}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
+      </nav>
+
+      <div className="p-3 border-t border-border">
+        <StorageQuotaIndicator />
       </div>
     </aside>
   );
-}
+};
+
+export default Sidebar;

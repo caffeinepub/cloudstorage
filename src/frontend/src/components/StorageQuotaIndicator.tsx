@@ -1,53 +1,70 @@
-import { useGetStorageQuota } from '../hooks/useQueries';
-import { Progress } from '@/components/ui/progress';
-import { HardDrive } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Skeleton } from "@/components/ui/skeleton";
+import { HardDrive } from "lucide-react";
+import React from "react";
+import { useGetStorageQuota } from "../hooks/useQueries";
+
+function formatBytes(bytes: bigint): string {
+  const n = Number(bytes);
+  if (n === 0) return "0 B";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
 
 export default function StorageQuotaIndicator() {
-  const { data: quota, isLoading } = useGetStorageQuota();
+  const { data: quota, isLoading, isError } = useGetStorageQuota();
 
-  if (isLoading || !quota) {
+  if (isLoading) {
     return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <HardDrive className="h-4 w-4" />
-          <span>Loading storage...</span>
+      <div className="space-y-2 px-1">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-3.5 w-3.5 rounded" />
+          <Skeleton className="h-3 w-20" />
         </div>
+        <Skeleton className="h-1.5 w-full rounded-full" />
+        <Skeleton className="h-3 w-28" />
       </div>
     );
   }
 
-  const usedMB = Number(quota.used) / (1024 * 1024);
-  const totalMB = Number(quota.total) / (1024 * 1024);
-  const percentage = totalMB > 0 ? (usedMB / totalMB) * 100 : 0;
-
-  const getColorClass = () => {
-    if (percentage >= 90) return 'bg-destructive';
-    if (percentage >= 75) return 'bg-chart-4';
-    return 'bg-primary';
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between text-sm">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <HardDrive className="h-4 w-4" />
-          <span>Storage</span>
-        </div>
-        <span className="text-xs font-medium">
-          {usedMB.toFixed(1)} / {totalMB.toFixed(1)} MB
+  if (isError || !quota) {
+    return (
+      <div className="flex items-center gap-2 px-1">
+        <HardDrive className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <span className="text-xs text-muted-foreground">
+          Storage unavailable
         </span>
       </div>
-      <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
+    );
+  }
+
+  const used = Number(quota.used);
+  const total = Number(quota.total);
+  const percentage =
+    total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
+
+  const barColor =
+    percentage >= 90
+      ? "bg-destructive"
+      : percentage >= 70
+        ? "bg-warning"
+        : "bg-primary";
+
+  return (
+    <div className="space-y-1.5 px-1">
+      <div className="flex items-center gap-2">
+        <HardDrive className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <span className="text-xs font-medium text-foreground">Storage</span>
+      </div>
+      <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
         <div
-          className={cn('h-full transition-all', getColorClass())}
-          style={{ width: `${Math.min(percentage, 100)}%` }}
+          className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+          style={{ width: `${percentage}%` }}
         />
       </div>
       <p className="text-xs text-muted-foreground">
-        {quota.available > 0
-          ? `${(Number(quota.available) / (1024 * 1024)).toFixed(1)} MB available`
-          : 'Storage full'}
+        {formatBytes(quota.used)} / {formatBytes(quota.total)}
       </p>
     </div>
   );

@@ -1,23 +1,27 @@
-import { useState, useEffect } from 'react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { CalendarIcon, X } from 'lucide-react';
-import { format } from 'date-fns';
-import { Principal } from '@dfinity/principal';
-import type { TrashItem } from '../hooks/useQueries';
+} from "@/components/ui/select";
+import { Principal } from "@icp-sdk/core/principal";
+import { format } from "date-fns";
+import { CalendarIcon, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import type { TrashMetadata } from "../backend";
 
 interface TrashFiltersProps {
-  trashData: TrashItem[];
-  onFilteredDataChange: (data: TrashItem[]) => void;
+  trashData: TrashMetadata[];
+  onFilteredDataChange: (data: TrashMetadata[]) => void;
   isAdmin: boolean;
   onOwnerFilterChange?: (owner: Principal | null) => void;
 }
@@ -28,69 +32,78 @@ export default function TrashFilters({
   isAdmin,
   onOwnerFilterChange,
 }: TrashFiltersProps) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [fileType, setFileType] = useState<string>('all');
-  const [ownerString, setOwnerString] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [fileType, setFileType] = useState<string>("all");
+  const [ownerString, setOwnerString] = useState<string>("all");
   const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
-  const [originalPath, setOriginalPath] = useState('');
+  const [originalPath, setOriginalPath] = useState("");
+  const onFilteredDataChangeRef = useRef(onFilteredDataChange);
+  onFilteredDataChangeRef.current = onFilteredDataChange;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: dateRange is included to re-filter when date range changes
   useEffect(() => {
     let filtered = trashData;
 
-    // Apply search filter
     if (searchTerm) {
       filtered = filtered.filter((item) =>
-        item.metadata.name.toLowerCase().includes(searchTerm.toLowerCase())
+        item.metadata.name.toLowerCase().includes(searchTerm.toLowerCase()),
       );
     }
 
-    // Apply file type filter
-    if (fileType !== 'all') {
+    if (fileType !== "all") {
       filtered = filtered.filter((item) => {
-        const extension = item.metadata.name.split('.').pop()?.toLowerCase() || '';
+        const extension =
+          item.metadata.name.split(".").pop()?.toLowerCase() || "";
         switch (fileType) {
-          case 'document':
-            return ['pdf', 'doc', 'docx', 'txt', 'rtf'].includes(extension);
-          case 'image':
-            return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'].includes(extension);
-          case 'video':
-            return ['mp4', 'avi', 'mov', 'wmv', 'flv'].includes(extension);
-          case 'audio':
-            return ['mp3', 'wav', 'ogg', 'flac'].includes(extension);
+          case "document":
+            return ["pdf", "doc", "docx", "txt", "rtf"].includes(extension);
+          case "image":
+            return ["jpg", "jpeg", "png", "gif", "bmp", "svg"].includes(
+              extension,
+            );
+          case "video":
+            return ["mp4", "avi", "mov", "wmv", "flv"].includes(extension);
+          case "audio":
+            return ["mp3", "wav", "ogg", "flac"].includes(extension);
           default:
             return true;
         }
       });
     }
 
-    // Apply owner filter (client-side for display filtering)
-    if (ownerString !== 'all' && isAdmin) {
-      filtered = filtered.filter((item) => item.metadata.owner.toString() === ownerString);
-    }
-
-    // Apply original path filter
-    if (originalPath) {
-      filtered = filtered.filter((item) =>
-        item.originalPath.toLowerCase().includes(originalPath.toLowerCase())
+    if (ownerString !== "all" && isAdmin) {
+      filtered = filtered.filter(
+        (item) => item.metadata.owner.toString() === ownerString,
       );
     }
 
-    onFilteredDataChange(filtered);
-  }, [searchTerm, fileType, ownerString, dateRange, originalPath, trashData, isAdmin, onFilteredDataChange]);
+    if (originalPath) {
+      filtered = filtered.filter((item) =>
+        item.originalPath.toLowerCase().includes(originalPath.toLowerCase()),
+      );
+    }
+
+    onFilteredDataChangeRef.current(filtered);
+  }, [
+    searchTerm,
+    fileType,
+    ownerString,
+    dateRange,
+    originalPath,
+    trashData,
+    isAdmin,
+  ]);
 
   const handleOwnerChange = (value: string) => {
     setOwnerString(value);
-    
-    // Notify parent component for backend filtering
     if (onOwnerFilterChange) {
-      if (value === 'all') {
+      if (value === "all") {
         onOwnerFilterChange(null);
       } else {
         try {
           const principal = Principal.fromText(value);
           onOwnerFilterChange(principal);
-        } catch (error) {
-          console.error('Invalid principal:', error);
+        } catch {
           onOwnerFilterChange(null);
         }
       }
@@ -98,18 +111,18 @@ export default function TrashFilters({
   };
 
   const handleClearFilters = () => {
-    setSearchTerm('');
-    setFileType('all');
-    setOwnerString('all');
+    setSearchTerm("");
+    setFileType("all");
+    setOwnerString("all");
     setDateRange({});
-    setOriginalPath('');
+    setOriginalPath("");
     if (onOwnerFilterChange) {
       onOwnerFilterChange(null);
     }
   };
 
   const uniqueOwners = Array.from(
-    new Set(trashData.map((item) => item.metadata.owner.toString()))
+    new Set(trashData.map((item) => item.metadata.owner.toString())),
   );
 
   return (
@@ -160,15 +173,19 @@ export default function TrashFilters({
       <div className="flex items-center gap-2">
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" className="justify-start text-left font-normal">
+            <Button
+              variant="outline"
+              className="justify-start text-left font-normal"
+            >
               <CalendarIcon className="mr-2 h-4 w-4" />
               {dateRange.from ? (
                 dateRange.to ? (
                   <>
-                    {format(dateRange.from, 'LLL dd, y')} - {format(dateRange.to, 'LLL dd, y')}
+                    {format(dateRange.from, "LLL dd, y")} -{" "}
+                    {format(dateRange.to, "LLL dd, y")}
                   </>
                 ) : (
-                  format(dateRange.from, 'LLL dd, y')
+                  format(dateRange.from, "LLL dd, y")
                 )
               ) : (
                 <span>Pick a date range</span>
@@ -179,13 +196,19 @@ export default function TrashFilters({
             <Calendar
               mode="range"
               selected={{ from: dateRange.from, to: dateRange.to }}
-              onSelect={(range) => setDateRange({ from: range?.from, to: range?.to })}
+              onSelect={(range) =>
+                setDateRange({ from: range?.from, to: range?.to })
+              }
               numberOfMonths={2}
             />
           </PopoverContent>
         </Popover>
 
-        {(searchTerm || fileType !== 'all' || ownerString !== 'all' || dateRange.from || originalPath) && (
+        {(searchTerm ||
+          fileType !== "all" ||
+          ownerString !== "all" ||
+          dateRange.from ||
+          originalPath) && (
           <Button variant="ghost" size="sm" onClick={handleClearFilters}>
             <X className="mr-2 h-4 w-4" />
             Clear filters

@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
-import type { FileMetadata } from '../backend';
+import { useMemo, useState } from "react";
+import type { FileMetadata } from "../backend";
 
 export function useFileSearch() {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
 
   const searchFiles = useMemo(() => {
     return (files: FileMetadata[]): FileMetadata[] => {
@@ -18,7 +18,7 @@ export function useFileSearch() {
         }
 
         // Search by file type (extension)
-        const extension = file.name.split('.').pop()?.toLowerCase() || '';
+        const extension = file.name.split(".").pop()?.toLowerCase() || "";
         if (extension.includes(query)) {
           return true;
         }

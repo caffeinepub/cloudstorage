@@ -1,44 +1,64 @@
-import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useRenameFolder } from '../hooks/useFolderQueries';
-import { toast } from 'sonner';
-import type { FolderMetadata } from '../backend';
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import type { Folder } from "../backend";
+import { useRenameFolder } from "../hooks/useQueries";
 
 interface RenameFolderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  folder: FolderMetadata;
+  folder: Folder | null;
 }
 
-export default function RenameFolderDialog({ open, onOpenChange, folder }: RenameFolderDialogProps) {
-  const [name, setName] = useState(folder.name);
-  const [error, setError] = useState('');
+export default function RenameFolderDialog({
+  open,
+  onOpenChange,
+  folder,
+}: RenameFolderDialogProps) {
+  const [newName, setNewName] = useState("");
+  const [error, setError] = useState("");
   const renameFolder = useRenameFolder();
 
   useEffect(() => {
-    setName(folder.name);
-  }, [folder.name]);
+    if (folder) {
+      setNewName(folder.name);
+      setError("");
+    }
+  }, [folder]);
 
-  const handleSubmit = async () => {
-    if (!name.trim()) {
-      setError('Folder name is required');
+  const handleRename = async () => {
+    if (!folder) return;
+
+    if (!newName.trim()) {
+      setError("Folder name cannot be empty");
       return;
     }
 
-    if (name.length > 100) {
-      setError('Folder name must be less than 100 characters');
+    if (newName === folder.name) {
+      onOpenChange(false);
       return;
     }
 
     try {
-      await renameFolder.mutateAsync({ folderId: folder.id, newName: name.trim() });
-      toast.success('Folder renamed successfully');
+      await renameFolder.mutateAsync({
+        folderId: folder.id,
+        newName: newName.trim(),
+      });
+      toast.success("Folder renamed successfully");
       onOpenChange(false);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to rename folder');
+    } catch (_error) {
+      toast.error("Failed to rename folder");
+      setError("Failed to rename folder. Please try again.");
     }
   };
 
@@ -47,31 +67,37 @@ export default function RenameFolderDialog({ open, onOpenChange, folder }: Renam
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Rename Folder</DialogTitle>
+          <DialogDescription>
+            Enter a new name for "{folder?.name}"
+          </DialogDescription>
         </DialogHeader>
-
         <div className="space-y-4 py-4">
-          <div>
-            <Label htmlFor="name">New Folder Name</Label>
+          <div className="space-y-2">
+            <Label htmlFor="folderName">Folder Name</Label>
             <Input
-              id="name"
-              value={name}
+              id="folderName"
+              value={newName}
               onChange={(e) => {
-                setName(e.target.value);
-                setError('');
+                setNewName(e.target.value);
+                setError("");
               }}
-              placeholder="Enter new folder name"
-              className={error ? 'border-destructive' : ''}
+              placeholder="Enter folder name"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleRename();
+                }
+              }}
             />
-            {error && <p className="text-sm text-destructive mt-1">{error}</p>}
+            {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
         </div>
-
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={renameFolder.isPending}>
-            {renameFolder.isPending ? 'Renaming...' : 'Rename'}
+          <Button onClick={handleRename} disabled={renameFolder.isPending}>
+            {renameFolder.isPending ? "Renaming..." : "Rename"}
           </Button>
         </DialogFooter>
       </DialogContent>

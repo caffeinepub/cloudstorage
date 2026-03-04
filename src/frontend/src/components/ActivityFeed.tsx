@@ -1,18 +1,18 @@
-import { useRecentActivities } from '../hooks/useQueries';
-import { Card } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { FileIcon, Trash2, Download, Upload, Clock } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Clock, Download, FileIcon, Trash2, Upload } from "lucide-react";
+import { useGetRecentActivities } from "../hooks/useQueries";
 
 export default function ActivityFeed() {
-  const { data: activities, isLoading } = useRecentActivities();
+  const { data: activities, isLoading } = useGetRecentActivities();
 
   if (isLoading) {
     return (
       <Card className="p-6">
         <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
         <div className="flex items-center justify-center h-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         </div>
       </Card>
     );
@@ -32,11 +32,11 @@ export default function ActivityFeed() {
 
   const getActivityIcon = (action: string) => {
     switch (action.toUpperCase()) {
-      case 'UPLOAD':
+      case "UPLOAD":
         return <Upload className="h-4 w-4" />;
-      case 'DOWNLOAD':
+      case "DOWNLOAD":
         return <Download className="h-4 w-4" />;
-      case 'DELETE':
+      case "DELETE":
         return <Trash2 className="h-4 w-4" />;
       default:
         return <FileIcon className="h-4 w-4" />;

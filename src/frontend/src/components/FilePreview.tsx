@@ -1,9 +1,16 @@
-import { useEffect, useState } from 'react';
-import { X, FileText, Image as ImageIcon, Video, FileIcon, Download } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import type { FileMetadata } from '../backend';
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Download,
+  FileIcon,
+  FileText,
+  Image as ImageIcon,
+  Video,
+  X,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import type { FileMetadata } from "../backend";
 
 interface FilePreviewProps {
   file: FileMetadata;
@@ -11,34 +18,50 @@ interface FilePreviewProps {
   onClose: () => void;
 }
 
-export default function FilePreview({ file, fileData, onClose }: FilePreviewProps) {
+export default function FilePreview({
+  file,
+  fileData,
+  onClose,
+}: FilePreviewProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
 
-  const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
-  const isImage = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(fileExtension);
-  const isVideo = ['mp4', 'webm', 'ogg'].includes(fileExtension);
-  const isPDF = fileExtension === 'pdf';
-  const isText = ['txt', 'md', 'json', 'js', 'ts', 'tsx', 'jsx', 'css', 'html'].includes(fileExtension);
+  const fileExtension = file.name.split(".").pop()?.toLowerCase() || "";
+  const isImage = ["png", "jpg", "jpeg", "gif", "svg", "webp"].includes(
+    fileExtension,
+  );
+  const isVideo = ["mp4", "webm", "ogg"].includes(fileExtension);
+  const isPDF = fileExtension === "pdf";
+  const isText = [
+    "txt",
+    "md",
+    "json",
+    "js",
+    "ts",
+    "tsx",
+    "jsx",
+    "css",
+    "html",
+  ].includes(fileExtension);
 
   useEffect(() => {
     if (!fileData) return;
 
     if (isImage || isVideo || isPDF) {
       const mimeTypes: Record<string, string> = {
-        png: 'image/png',
-        jpg: 'image/jpeg',
-        jpeg: 'image/jpeg',
-        gif: 'image/gif',
-        svg: 'image/svg+xml',
-        webp: 'image/webp',
-        mp4: 'video/mp4',
-        webm: 'video/webm',
-        ogg: 'video/ogg',
-        pdf: 'application/pdf',
+        png: "image/png",
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        gif: "image/gif",
+        svg: "image/svg+xml",
+        webp: "image/webp",
+        mp4: "video/mp4",
+        webm: "video/webm",
+        ogg: "video/ogg",
+        pdf: "application/pdf",
       };
 
-      const mimeType = mimeTypes[fileExtension] || 'application/octet-stream';
+      const mimeType = mimeTypes[fileExtension] || "application/octet-stream";
       // Convert to proper Uint8Array with ArrayBuffer
       const properArray = new Uint8Array(fileData);
       const blob = new Blob([properArray], { type: mimeType });
@@ -46,7 +69,8 @@ export default function FilePreview({ file, fileData, onClose }: FilePreviewProp
       setPreviewUrl(url);
 
       return () => URL.revokeObjectURL(url);
-    } else if (isText) {
+    }
+    if (isText) {
       const decoder = new TextDecoder();
       const text = decoder.decode(fileData);
       setTextContent(text);
@@ -65,7 +89,7 @@ export default function FilePreview({ file, fileData, onClose }: FilePreviewProp
     const properArray = new Uint8Array(fileData);
     const blob = new Blob([properArray]);
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
     a.download = file.name;
     a.click();
@@ -103,7 +127,7 @@ export default function FilePreview({ file, fileData, onClose }: FilePreviewProp
           {!fileData ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
                 <p className="text-muted-foreground">Loading preview...</p>
               </div>
             </div>
@@ -122,6 +146,7 @@ export default function FilePreview({ file, fileData, onClose }: FilePreviewProp
                 controls
                 className="max-w-full max-h-full rounded-lg shadow-lg"
               >
+                <track kind="captions" />
                 Your browser does not support the video tag.
               </video>
             </div>
@@ -133,7 +158,9 @@ export default function FilePreview({ file, fileData, onClose }: FilePreviewProp
             />
           ) : isText && textContent ? (
             <ScrollArea className="h-full">
-              <pre className="p-8 text-sm font-mono whitespace-pre-wrap">{textContent}</pre>
+              <pre className="p-8 text-sm font-mono whitespace-pre-wrap">
+                {textContent}
+              </pre>
             </ScrollArea>
           ) : (
             <div className="flex items-center justify-center h-full">

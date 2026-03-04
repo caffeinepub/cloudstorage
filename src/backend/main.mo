@@ -1,23 +1,29 @@
+import List "mo:core/List";
 import Map "mo:core/Map";
-import Array "mo:core/Array";
 import Nat "mo:core/Nat";
-import Text "mo:core/Text";
-import Blob "mo:core/Blob";
 import Int "mo:core/Int";
+import Blob "mo:core/Blob";
 import Time "mo:core/Time";
 import Set "mo:core/Set";
-import List "mo:core/List";
+import Array "mo:core/Array";
+import Iter "mo:core/Iter";
+import Text "mo:core/Text";
 import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
+
 import AccessControl "authorization/access-control";
+import UserApproval "user-approval/approval";
 import MixinAuthorization "authorization/MixinAuthorization";
 import Storage "blob-storage/Storage";
 import MixinStorage "blob-storage/Mixin";
 
+// No explicit migration needed!
 actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
   include MixinStorage();
+
+  let approvalState = UserApproval.initState(accessControlState);
 
   type RetentionPeriod = Nat;
   type DefaultRetentionPeriod = Nat;
@@ -76,6 +82,7 @@ actor {
     size : Nat;
     owner : Principal;
     uploadedAt : Nat;
+    folderId : ?Text;
   };
 
   public type ActivityLog = {
@@ -161,8 +168,31 @@ actor {
     relativeTime : Text;
   };
 
-  let DEFAULT_QUOTA : Nat = 100_000_000;
-  let ADMIN_QUOTA : Nat = 1_000_000_000;
+  public type Folder = {
+    id : Text;
+    name : Text;
+    owner : Principal;
+    parentId : ?Text;
+    createdAt : Nat;
+  };
+
+  public type FolderProtection = {
+    hashedPassword : ?Text;
+    isLocked : Bool;
+    failedAttempts : Nat;
+  };
+
+  type TrashFolderMetadata = {
+    folder : Folder;
+    deletedAt : Nat;
+    originalPath : Text;
+    retentionPeriod : RetentionPeriod;
+    owner : Principal;
+  };
+
+  // Default quota is 1 GB (1,073,741,824 bytes) as per the implementation plan
+  let DEFAULT_QUOTA : Nat = 1_073_741_824;
+  let ADMIN_QUOTA : Nat = 1_073_741_824;
   let DEFAULT_RETENTION_PERIOD : DefaultRetentionPeriod = 1000000000 * 60 * 60 * 24 * 30;
 
   let userProfiles = Map.empty<Principal, UserProfile>();
@@ -182,28 +212,60 @@ actor {
   let sharedFilesBySender = Map.empty<Principal, List.List<FileShare>>();
   var logCounter : Nat = 0;
   var notificationCounter : Nat = 0;
+  let folderMetadata = Map.empty<Text, Folder>();
+  let userFavoriteFolders = Map.empty<Principal, Set.Set<Text>>();
+  let trashFolderMetadata = Map.empty<Text, TrashFolderMetadata>();
+  let folderProtections = Map.empty<Text, FolderProtection>();
 
-  private func getUserQuota(user : Principal) : Nat {
+  // Returns all registered users with their storage usage (bytes used) and assigned quota (bytes).
+  // Admin-only.
+  public query ({ caller }) func getRegisteredUsersWithQuota() : async [(Principal, Nat, Nat)] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can view registered users with quota");
+    };
+
+    userProfiles.toArray().map(
+      func((principal, _)) {
+        let used = switch (userStorageUsed.get(principal)) {
+          case (?used) { used };
+          case (null) { 0 };
+        };
+
+        let quota = getUserQuota(principal);
+
+        (principal, used, quota);
+      }
+    );
+  };
+
+  // Sets a per-user storage quota in bytes. Admin-only.
+  // If no quota has been explicitly set for a user, the default of 1 GB applies.
+  public shared ({ caller }) func setUserQuotaInBytes(user : Principal, quota : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can set user quotas");
+    };
+
+    userQuotas.add(user, quota);
+  };
+
+  func getUserQuota(user : Principal) : Nat {
     switch (userQuotas.get(user)) {
       case (?quota) { quota };
       case (null) {
-        if (AccessControl.isAdmin(accessControlState, user)) {
-          ADMIN_QUOTA;
-        } else {
-          DEFAULT_QUOTA;
-        };
+        // Default quota for all users is 1 GB (1,073,741,824 bytes)
+        DEFAULT_QUOTA;
       };
     };
   };
 
-  private func getStorageUsed(user : Principal) : Nat {
+  func getStorageUsed(user : Principal) : Nat {
     switch (userStorageUsed.get(user)) {
       case (?used) { used };
       case (null) { 0 };
     };
   };
 
-  private func updateStorageUsed(user : Principal, delta : Int) {
+  func updateStorageUsed(user : Principal, delta : Int) {
     let currentUsed = getStorageUsed(user);
     let newUsed = if (Int.abs(delta) >= 0) {
       let proposed = currentUsed.toInt() + delta;
@@ -214,7 +276,7 @@ actor {
     userStorageUsed.add(user, newUsed);
   };
 
-  private func logActivity(user : Principal, action : Text, fileId : Text, fileName : Text, details : Text) {
+  func logActivity(user : Principal, action : Text, fileId : Text, fileName : Text, details : Text) {
     let log : ActivityLog = {
       timestamp = Int.abs(Time.now());
       user;
@@ -227,9 +289,14 @@ actor {
     logCounter += 1;
   };
 
-  private func formatRelativeTime(pastTimestamp : Nat) : Text {
+  func formatRelativeTime(pastTimestamp : Nat) : Text {
     let currentTime = Int.abs(Time.now());
-    let diff = currentTime - pastTimestamp;
+    // Correct potential underflow
+    let diff = if (pastTimestamp > currentTime) {
+      pastTimestamp - currentTime;
+    } else {
+      currentTime - pastTimestamp;
+    };
 
     let second = 1_000_000_000;
     let minute = 60 * second;
@@ -250,7 +317,7 @@ actor {
     };
   };
 
-  private func hasFileAccess(caller : Principal, fileId : Text) : Bool {
+  func hasFileAccess(caller : Principal, fileId : Text) : Bool {
     switch (fileMetadata.get(fileId)) {
       case (?metadata) {
         if (metadata.owner == caller or AccessControl.isAdmin(accessControlState, caller)) {
@@ -272,7 +339,7 @@ actor {
     };
   };
 
-  private func hasFileDownloadAccess(caller : Principal, fileId : Text) : Bool {
+  func hasFileDownloadAccess(caller : Principal, fileId : Text) : Bool {
     switch (fileMetadata.get(fileId)) {
       case (?metadata) {
         if (metadata.owner == caller or AccessControl.isAdmin(accessControlState, caller)) {
@@ -294,7 +361,154 @@ actor {
     };
   };
 
-  // User profile management
+  func getAllSubfolderIds(folderId : Text) : [Text] {
+    var subfolderIds : [Text] = [];
+
+    for ((id, folder) in folderMetadata.entries()) {
+      switch (folder.parentId) {
+        case (?parentId) {
+          if (parentId == folderId) {
+            subfolderIds := subfolderIds.concat([id]);
+            let childSubfolders = getAllSubfolderIds(id);
+            subfolderIds := subfolderIds.concat(childSubfolders);
+          };
+        };
+        case (null) {};
+      };
+    };
+
+    for ((id, trashFolder) in trashFolderMetadata.entries()) {
+      switch (trashFolder.folder.parentId) {
+        case (?parentId) {
+          if (parentId == folderId) {
+            subfolderIds := subfolderIds.concat([id]);
+            let childSubfolders = getAllSubfolderIds(id);
+            subfolderIds := subfolderIds.concat(childSubfolders);
+          };
+        };
+        case (null) {};
+      };
+    };
+
+    subfolderIds;
+  };
+
+  func getFilesInFolderHierarchy(folderId : Text) : [Text] {
+    var fileIds : [Text] = [];
+
+    for ((id, file) in fileMetadata.entries()) {
+      switch (file.folderId) {
+        case (?fId) {
+          if (fId == folderId) {
+            fileIds := fileIds.concat([id]);
+          };
+        };
+        case (null) {};
+      };
+    };
+
+    for ((id, trashFile) in trashMetadata.entries()) {
+      switch (trashFile.metadata.folderId) {
+        case (?fId) {
+          if (fId == folderId) {
+            fileIds := fileIds.concat([id]);
+          };
+        };
+        case (null) {};
+      };
+    };
+
+    let subfolderIds = getAllSubfolderIds(folderId);
+    for (subfolderId in subfolderIds.vals()) {
+      let subfolderFiles = getFilesInFolderHierarchy(subfolderId);
+      fileIds := fileIds.concat(subfolderFiles);
+    };
+
+    fileIds;
+  };
+
+  func verifyFolderHierarchyOwnership(folderId : Text, expectedOwner : Principal, caller : Principal) : Bool {
+    let isAdmin = AccessControl.isAdmin(accessControlState, caller);
+
+    switch (trashFolderMetadata.get(folderId)) {
+      case (?trashFolder) {
+        if (not isAdmin and trashFolder.owner != expectedOwner) {
+          return false;
+        };
+      };
+      case (null) {
+        return false;
+      };
+    };
+
+    let subfolderIds = getAllSubfolderIds(folderId);
+    for (subfolderId in subfolderIds.vals()) {
+      switch (trashFolderMetadata.get(subfolderId)) {
+        case (?trashFolder) {
+          if (not isAdmin and trashFolder.owner != expectedOwner) {
+            return false;
+          };
+        };
+        case (null) {};
+      };
+    };
+
+    let fileIds = getFilesInFolderHierarchy(folderId);
+    for (fileId in fileIds.vals()) {
+      switch (trashMetadata.get(fileId)) {
+        case (?trashFile) {
+          if (not isAdmin and trashFile.metadata.owner != expectedOwner) {
+            return false;
+          };
+        };
+        case (null) {};
+      };
+    };
+
+    true;
+  };
+
+  func verifyActiveFolderHierarchyOwnership(folderId : Text, expectedOwner : Principal, caller : Principal) : Bool {
+    let isAdmin = AccessControl.isAdmin(accessControlState, caller);
+
+    switch (folderMetadata.get(folderId)) {
+      case (?folder) {
+        if (not isAdmin and folder.owner != expectedOwner) {
+          return false;
+        };
+      };
+      case (null) {
+        return false;
+      };
+    };
+
+    let subfolderIds = getAllSubfolderIds(folderId);
+    for (subfolderId in subfolderIds.vals()) {
+      switch (folderMetadata.get(subfolderId)) {
+        case (?folder) {
+          if (not isAdmin and folder.owner != expectedOwner) {
+            return false;
+          };
+        };
+        case (null) {};
+      };
+    };
+
+    let fileIds = getFilesInFolderHierarchy(folderId);
+    for (fileId in fileIds.vals()) {
+      switch (fileMetadata.get(fileId)) {
+        case (?file) {
+          if (not isAdmin and file.owner != expectedOwner) {
+            return false;
+          };
+        };
+        case (null) {};
+      };
+    };
+
+    true;
+  };
+
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can view profiles");
@@ -309,6 +523,18 @@ actor {
     userProfiles.get(user);
   };
 
+  public query ({ caller }) func getAdministrationsTableData() : async [(Principal, Text)] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can view the administrations table");
+    };
+
+    userProfiles.toArray().map(
+      func((principal, profile)) {
+        (principal, profile.name);
+      }
+    );
+  };
+
   public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can save profiles");
@@ -316,7 +542,466 @@ actor {
     userProfiles.add(caller, profile);
   };
 
-  // File upload and download
+  public shared ({ caller }) func createFolder(name : Text, parentId : ?Text) : async Text {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can create folders");
+    };
+
+    let folderId = Int.abs(Time.now()).toText() # caller.toText();
+    let folder : Folder = {
+      id = folderId;
+      name;
+      owner = caller;
+      parentId;
+      createdAt = Int.abs(Time.now());
+    };
+
+    folderMetadata.add(folderId, folder);
+
+    let protection : FolderProtection = {
+      hashedPassword = null;
+      isLocked = false;
+      failedAttempts = 0;
+    };
+    folderProtections.add(folderId, protection);
+
+    folderId;
+  };
+
+  public query ({ caller }) func getFolder(folderId : Text) : async ?Folder {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view folders");
+    };
+
+    switch (folderMetadata.get(folderId)) {
+      case (?folder) {
+        if (folder.owner != caller and not (AccessControl.isAdmin(accessControlState, caller))) {
+          Runtime.trap("Unauthorized: Can only view your own folders");
+        };
+        ?folder;
+      };
+      case (null) { null };
+    };
+  };
+
+  public query ({ caller }) func listFolders() : async [Folder] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can list folders");
+    };
+
+    let isAdmin = AccessControl.isAdmin(accessControlState, caller);
+    let folders = folderMetadata.values().toArray();
+
+    if (isAdmin) {
+      folders;
+    } else {
+      folders.filter(func(folder) { folder.owner == caller });
+    };
+  };
+
+  public shared ({ caller }) func moveFilesToFolder(fileIds : [Text], targetFolderId : Text) : async Bool {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can move files");
+    };
+
+    switch (folderMetadata.get(targetFolderId)) {
+      case (?folder) {
+        if (folder.owner != caller and not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+          Runtime.trap("Unauthorized: Folder not found");
+        };
+
+        for (fileId in fileIds.values()) {
+          switch (fileMetadata.get(fileId)) {
+            case (?metadata) {
+              if (metadata.owner != caller and not (AccessControl.isAdmin(accessControlState, caller))) {
+                Runtime.trap("Unauthorized: Cannot move files owned by others");
+              };
+
+              let updatedMetadata = {
+                metadata with folderId = ?targetFolderId;
+              };
+              fileMetadata.add(fileId, updatedMetadata);
+            };
+            case (null) { Runtime.trap("File not found") };
+          };
+        };
+        return true;
+      };
+      case (null) { Runtime.trap("Target folder not found") };
+    };
+  };
+
+  public shared ({ caller }) func favoriteFolder(folderId : Text) : async Bool {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can favorite folders");
+    };
+
+    switch (folderMetadata.get(folderId)) {
+      case (?folder) {
+        if (folder.owner != caller and not (AccessControl.isAdmin(accessControlState, caller))) {
+          Runtime.trap("Unauthorized: Cannot favorite folders owned by others");
+        };
+
+        let favorites = switch (userFavoriteFolders.get(caller)) {
+          case (?existing) { existing };
+          case (null) { Set.empty<Text>() };
+        };
+
+        favorites.add(folderId);
+        userFavoriteFolders.add(caller, favorites);
+        let favoritesSize = favorites.size();
+        favoritesSize > 0;
+      };
+      case (null) { Runtime.trap("Folder not found") };
+    };
+  };
+
+  public shared ({ caller }) func unfavoriteFolder(folderId : Text) : async Bool {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can unfavorite folders");
+    };
+
+    switch (userFavoriteFolders.get(caller)) {
+      case (?favorites) {
+        favorites.remove(folderId);
+        userFavoriteFolders.add(caller, favorites);
+        let favoritesSize = favorites.size();
+        favoritesSize > 0;
+      };
+      case (null) { false };
+    };
+  };
+
+  public query ({ caller }) func isFavoriteFolder(folderId : Text) : async Bool {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can check favorites");
+    };
+
+    switch (userFavoriteFolders.get(caller)) {
+      case (?favorites) { favorites.contains(folderId) };
+      case (null) { false };
+    };
+  };
+
+  public query ({ caller }) func getFavoriteFolders() : async [Folder] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view favorite folders");
+    };
+
+    let favorites : [Text] = switch (userFavoriteFolders.get(caller)) {
+      case (?favorites) { favorites.toArray() };
+      case (null) { [] };
+    };
+
+    favorites.map(
+      func(folderId) {
+        switch (folderMetadata.get(folderId)) {
+          case (?folder) { folder };
+          case (null) {
+            {
+              id = folderId;
+              name = "";
+              owner = Principal.fromText("2vxsx-fae");
+              parentId = null;
+              createdAt = Int.abs(Time.now());
+            };
+          };
+        };
+      }
+    );
+  };
+
+  public shared ({ caller }) func renameFolder(folderId : Text, newName : Text) : async Bool {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can rename folders");
+    };
+
+    switch (folderMetadata.get(folderId)) {
+      case (?folder) {
+        if (folder.owner != caller and not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+          Runtime.trap("Unauthorized: Cannot rename folders owned by others");
+        };
+
+        let updatedFolder = {
+          folder with name = newName;
+        };
+        folderMetadata.add(folderId, updatedFolder);
+        true;
+      };
+      case (null) { Runtime.trap("Folder not found") };
+    };
+  };
+
+  /// Improved function to move a folder (with recursive subtree traversal and proper authorization)
+  public shared ({ caller }) func moveFolder(folderId : Text, destFolderId : ?Text) : async Bool {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can move folders");
+    };
+
+    let maybeFolder = folderMetadata.get(folderId);
+    switch (maybeFolder) {
+      case (null) {
+        Runtime.trap("Folder not found in folderMetadata");
+      };
+      case (?folder) {
+        let isAdmin = AccessControl.isAdmin(accessControlState, caller);
+
+        // Check ownership of the folder being moved
+        if (not isAdmin and caller != folder.owner) {
+          Runtime.trap("Unauthorized: Cannot move folders owned by others");
+        };
+
+        // Validate destination folder exists and caller has access
+        let newParentId = switch (destFolderId) {
+          case (null) { null };
+          case (?parentId) {
+            let destFolderOpt = folderMetadata.get(parentId);
+            switch (destFolderOpt) {
+              case (null) {
+                Runtime.trap("Destination parent folder not found");
+              };
+              case (?destFolder) {
+                // Verify caller has access to destination folder
+                if (not isAdmin and caller != destFolder.owner) {
+                  Runtime.trap("Unauthorized: Cannot move to folders owned by others");
+                };
+                ?parentId;
+              };
+            };
+          };
+        };
+
+        // Helper function to verify ownership of entire subtree before making changes
+        func verifySubtreeOwnership(folderId : Text, expectedOwner : Principal) : Bool {
+          // Check the folder itself
+          switch (folderMetadata.get(folderId)) {
+            case (null) { return false };
+            case (?folder) {
+              if (not isAdmin and folder.owner != expectedOwner) {
+                return false;
+              };
+            };
+          };
+
+          // Check all direct children folders
+          for ((_, childFolder) in folderMetadata.entries()) {
+            switch (childFolder.parentId) {
+              case (?parentId) {
+                if (parentId == folderId) {
+                  if (not verifySubtreeOwnership(childFolder.id, expectedOwner)) {
+                    return false;
+                  };
+                };
+              };
+              case (null) {};
+            };
+          };
+
+          // Check all files in this folder
+          for ((_, file) in fileMetadata.entries()) {
+            switch (file.folderId) {
+              case (?fId) {
+                if (fId == folderId) {
+                  if (not isAdmin and file.owner != expectedOwner) {
+                    return false;
+                  };
+                };
+              };
+              case (null) {};
+            };
+          };
+
+          true;
+        };
+
+        // Verify ownership of entire subtree before proceeding
+        if (not verifySubtreeOwnership(folderId, folder.owner)) {
+          Runtime.trap("Unauthorized: Cannot move folder tree containing items owned by others");
+        };
+
+        // Helper function to recursively update parentId for all subfolders
+        func updateSubfoldersParentId(folderId : Text, newParentId : ?Text) {
+          let updatedFolder = switch (folderMetadata.get(folderId)) {
+            case (null) {
+              Runtime.trap("Inconsistent folder state: folderId not found");
+            };
+            case (?folder) { { folder with parentId = newParentId } };
+          };
+          folderMetadata.add(folderId, updatedFolder);
+
+          // Find all direct children of this folder and recurse on them
+          for ((_, childFolder) in folderMetadata.entries()) {
+            switch (childFolder.parentId) {
+              case (?parentId) {
+                if (parentId == folderId) {
+                  updateSubfoldersParentId(childFolder.id, ?folderId);
+                };
+              };
+              case (null) {};
+            };
+          };
+
+          // Update files contained in this folder (if any) to ensure correct folderId reference
+          for ((fileId, file) in fileMetadata.entries()) {
+            switch (file.folderId) {
+              case (?fId) {
+                if (fId == folderId) {
+                  let updatedFile = { file with folderId = ?folderId };
+                  fileMetadata.add(fileId, updatedFile);
+                };
+              };
+              case (null) {};
+            };
+          };
+        };
+
+        // Perform recursive update starting with the specified folderId
+        updateSubfoldersParentId(folderId, newParentId);
+
+        true;
+      };
+    };
+  };
+
+  public shared ({ caller }) func permanentlyDeleteFolder(folderId : Text) : async Bool {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can permanently delete folders");
+    };
+
+    switch (trashFolderMetadata.get(folderId)) {
+      case (?trashEntry) {
+        let folder = trashEntry.folder;
+
+        if (folder.owner != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Cannot permanently delete folders owned by others");
+        };
+
+        if (not verifyFolderHierarchyOwnership(folderId, folder.owner, caller)) {
+          Runtime.trap("Unauthorized: Cannot permanently delete folder hierarchy containing items owned by others");
+        };
+
+        let fileIds = getFilesInFolderHierarchy(folderId);
+        for (fileId in fileIds.vals()) {
+          switch (trashMetadata.get(fileId)) {
+            case (?trashFile) {
+              fileChunks.remove(fileId);
+              trashMetadata.remove(fileId);
+            };
+            case (null) {};
+          };
+        };
+
+        let subfolderIds = getAllSubfolderIds(folderId);
+        for (subfolderId in subfolderIds.vals()) {
+          trashFolderMetadata.remove(subfolderId);
+        };
+
+        trashFolderMetadata.remove(folderId);
+
+        logActivity(
+          caller,
+          "PERMANENT_DELETE",
+          folderId,
+          folder.name,
+          "Folder and all contents permanently deleted",
+        );
+
+        true;
+      };
+      case (null) {
+        Runtime.trap("Folder not found in trash");
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteExpiredTrash() : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can delete expired trash");
+    };
+    let now = Int.abs(Time.now());
+    var deletedCount = 0;
+
+    for ((fileId, trashEntry) in trashMetadata.entries()) {
+      let expirationTime = if (now + trashEntry.retentionPeriod < trashEntry.deletedAt) {
+        0;
+      } else {
+        if (now + trashEntry.retentionPeriod > trashEntry.deletedAt) {
+          now + trashEntry.retentionPeriod - trashEntry.deletedAt;
+        } else {
+          // Should not happen, but just in case
+          0;
+        };
+      };
+      if (now >= expirationTime) {
+        fileChunks.remove(fileId);
+        trashMetadata.remove(fileId);
+
+        logActivity(
+          caller,
+          "AUTO_DELETE",
+          fileId,
+          trashEntry.metadata.name,
+          "File automatically deleted after retention period expired",
+        );
+        deletedCount += 1;
+      };
+    };
+
+    deletedCount;
+  };
+
+  public query ({ caller }) func getFilesInFolder(folderId : Text) : async [FileMetadata] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view folder contents");
+    };
+
+    switch (folderMetadata.get(folderId)) {
+      case (?folder) {
+        if (folder.owner != caller and not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+          Runtime.trap("Unauthorized: Cannot view folder contents for others");
+        };
+
+        let files = fileMetadata.values().toArray();
+        files.filter(func(file) { file.folderId == ?folderId });
+      };
+      case (null) { Runtime.trap("Folder not found") };
+    };
+  };
+
+  public query ({ caller }) func getFilesInFolderWithFavorites(folderId : Text) : async [FileMetadata] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view folder contents");
+    };
+
+    switch (folderMetadata.get(folderId)) {
+      case (?folder) {
+        if (folder.owner != caller and not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+          Runtime.trap("Unauthorized: Cannot view folder contents for others");
+        };
+
+        let files = fileMetadata.values().toArray();
+        files.filter(func(file) { file.folderId == ?folderId });
+      };
+      case (null) { Runtime.trap("Folder not found") };
+    };
+  };
+
+  public query ({ caller }) func listAllFoldersWithFavorites() : async [Folder] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can list folders");
+    };
+
+    let isAdmin = AccessControl.isAdmin(accessControlState, caller);
+    let folders = folderMetadata.values().toArray();
+
+    if (isAdmin) {
+      folders;
+    } else {
+      folders.filter(func(folder) { folder.owner == caller });
+    };
+  };
+
+  /// Extended uploadFileChunk
   public shared ({ caller }) func uploadFileChunk(
     fileId : Text,
     fileName : Text,
@@ -324,9 +1009,27 @@ actor {
     chunkData : Blob,
     totalChunks : Nat,
     totalSize : Nat,
+    folderId : ?Text,
   ) : async ?Text {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can upload files");
+    };
+
+    // Validate folder ownership if folderId is provided
+    switch (folderId) {
+      case (?id) {
+        switch (folderMetadata.get(id)) {
+          case (?folder) {
+            if (folder.owner != caller and not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+              Runtime.trap("Unauthorized: Cannot upload to folders owned by others");
+            };
+          };
+          case (null) {
+            Runtime.trap("Unauthorized: Folder with ID " # id # " does not exist. You must provide a valid folder ID or none at all.");
+          };
+        };
+      };
+      case (null) {};
     };
 
     if (chunkIndex == 0) {
@@ -342,6 +1045,7 @@ actor {
         size = totalSize;
         owner = caller;
         uploadedAt = 0;
+        folderId;
       };
       fileMetadata.add(fileId, metadata);
 
@@ -353,9 +1057,10 @@ actor {
         },
       );
     } else {
+      // For subsequent chunks, verify file ownership
       switch (fileMetadata.get(fileId)) {
         case (?metadata) {
-          if (metadata.owner != caller) {
+          if (metadata.owner != caller and not (AccessControl.isAdmin(accessControlState, caller))) {
             Runtime.trap("Unauthorized: Cannot upload chunks to files owned by others");
           };
         };
@@ -842,7 +1547,7 @@ actor {
 
         true;
       };
-      case (null) { 
+      case (null) {
         Runtime.trap("File not found");
       };
     };
@@ -1049,7 +1754,7 @@ actor {
 
         true;
       };
-      case (null) { 
+      case (null) {
         Runtime.trap("File not found in trash");
       };
     };
@@ -1081,7 +1786,7 @@ actor {
 
         true;
       };
-      case (null) { 
+      case (null) {
         Runtime.trap("File not found in trash");
       };
     };
@@ -1102,37 +1807,6 @@ actor {
       totalSize += entry.metadata.size;
     };
     totalSize;
-  };
-
-  public shared ({ caller }) func deleteExpiredTrash() : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can delete expired trash");
-    };
-    let now = Int.abs(Time.now());
-    var deletedCount = 0;
-
-    for ((fileId, trashEntry) in trashMetadata.entries()) {
-      let expirationTime = if (now + trashEntry.retentionPeriod < trashEntry.deletedAt) {
-        0;
-      } else {
-        now + trashEntry.retentionPeriod - trashEntry.deletedAt;
-      };
-      if (now >= expirationTime) {
-        fileChunks.remove(fileId);
-        trashMetadata.remove(fileId);
-
-        logActivity(
-          caller,
-          "AUTO_DELETE",
-          fileId,
-          trashEntry.metadata.name,
-          "File automatically deleted after retention period expired",
-        );
-        deletedCount += 1;
-      };
-    };
-
-    deletedCount;
   };
 
   public query ({ caller }) func getActivityLogs(limit : Nat) : async [ActivityLog] {
@@ -1243,4 +1917,286 @@ actor {
       };
     };
   };
+
+  public query ({ caller }) func listTrashFolders(ownerFilter : ?Principal) : async [TrashFolderMetadata] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view trash folders");
+    };
+
+    let isAdmin = AccessControl.isAdmin(accessControlState, caller);
+
+    switch (ownerFilter) {
+      case (null) {
+        let userFolders = trashFolderMetadata.values().toArray();
+        userFolders.filter(func(folder) { folder.owner == caller });
+      };
+      case (?owner) {
+        if (not isAdmin and caller != owner) {
+          Runtime.trap("Unauthorized: Users can only view their own trash");
+        };
+        let ownerFolders = trashFolderMetadata.values().toArray();
+        ownerFolders.filter(func(folder) { folder.owner == owner });
+      };
+    };
+  };
+
+  // listAllTrash is restricted to admins only, as it returns all users' data unfiltered
+  public query ({ caller }) func listAllTrash() : async {
+    files : [TrashMetadata];
+    folders : [TrashFolderMetadata];
+  } {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can list all trash");
+    };
+    let files = trashMetadata.values().toArray();
+    let folders = trashFolderMetadata.values().toArray();
+    { files; folders };
+  };
+
+  /// Soft-delete method for folders (Moves folders to trash with retention period)
+  public shared ({ caller }) func softDeleteFolder(folderId : Text, customRetentionPeriodDays : ?Nat) : async Bool {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can delete folders");
+    };
+
+    switch (folderMetadata.get(folderId)) {
+      case (?folder) {
+        // Validate folder ownership
+        if (folder.owner != caller and not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+          Runtime.trap("Unauthorized: Cannot delete folders owned by others");
+        };
+
+        // SECURITY FIX: Verify ownership of entire folder hierarchy before soft-delete
+        if (not verifyActiveFolderHierarchyOwnership(folderId, folder.owner, caller)) {
+          Runtime.trap("Unauthorized: Cannot delete folder hierarchy containing items owned by others");
+        };
+
+        let defaultRetentionPeriodNs = 30 * 24 * 60 * 60 * 1_000_000_000;
+        let retentionPeriodNs = switch (customRetentionPeriodDays) {
+          case (?days) { days * 24 * 60 * 60 * 1_000_000_000 };
+          case (null) { defaultRetentionPeriodNs };
+        };
+
+        let trashEntry : TrashFolderMetadata = {
+          folder;
+          deletedAt = Int.abs(Time.now());
+          originalPath = "Unknown";
+          retentionPeriod = retentionPeriodNs;
+          owner = folder.owner;
+        };
+
+        trashFolderMetadata.add(folderId, trashEntry);
+        folderMetadata.remove(folderId);
+
+        logActivity(
+          caller,
+          "SOFT_DELETE",
+          folderId,
+          folder.name,
+          "Folder moved to trash with retention period: " # retentionPeriodNs.toText() # "ns",
+        );
+
+        true;
+      };
+      case (null) {
+        Runtime.trap("Folder not found");
+      };
+    };
+  };
+
+  // Folder protection functions
+
+  // Set (or update) a password for a folder.
+  // Only the folder owner or an admin can set a password.
+  public shared ({ caller }) func setFolderPassword(folderId : Text, hashedPassword : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can set folder passwords");
+    };
+
+    switch (folderMetadata.get(folderId)) {
+      case (?folder) {
+        if (folder.owner != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Only the folder owner or an admin can set a folder password");
+        };
+        let protection : FolderProtection = {
+          hashedPassword = ?hashedPassword;
+          isLocked = true;
+          failedAttempts = 0;
+        };
+        folderProtections.add(folderId, protection);
+      };
+      case (null) {
+        Runtime.trap("Folder not found");
+      };
+    };
+  };
+
+  // Remove the password for a folder.
+  // Only the folder owner or an admin can remove a password.
+  public shared ({ caller }) func removeFolderPassword(folderId : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can remove folder passwords");
+    };
+
+    switch (folderMetadata.get(folderId)) {
+      case (?folder) {
+        if (folder.owner != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Only the folder owner or an admin can remove a folder password");
+        };
+        let protection : FolderProtection = {
+          hashedPassword = null;
+          isLocked = false;
+          failedAttempts = 0;
+        };
+        folderProtections.add(folderId, protection);
+      };
+      case (null) {
+        Runtime.trap("Folder not found");
+      };
+    };
+  };
+
+  // Toggle the locked state of a folder.
+  // Only the folder owner or an admin can toggle the lock.
+  public shared ({ caller }) func toggleFolderLock(folderId : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can toggle folder lock");
+    };
+
+    switch (folderMetadata.get(folderId)) {
+      case (?folder) {
+        if (folder.owner != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Only the folder owner or an admin can toggle the folder lock");
+        };
+        switch (folderProtections.get(folderId)) {
+          case (?protection) {
+            let newState = {
+              protection with isLocked = not protection.isLocked;
+            };
+            folderProtections.add(folderId, newState);
+          };
+          case (null) {
+            Runtime.trap("Folder protection record not found");
+          };
+        };
+      };
+      case (null) {
+        Runtime.trap("Folder not found");
+      };
+    };
+  };
+
+  // Verify a password attempt for a folder.
+  // Any authenticated user can attempt to verify a folder password (e.g., to unlock a shared folder).
+  public shared ({ caller }) func verifyFolderPassword(folderId : Text, attempt : Text) : async Bool {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can verify folder passwords");
+    };
+
+    switch (folderProtections.get(folderId)) {
+      case (?protection) {
+        switch (protection.hashedPassword) {
+          case (?storedHash) {
+            if (storedHash == attempt) {
+              let newState = {
+                protection with
+                failedAttempts = 0;
+                isLocked = false;
+              };
+              folderProtections.add(folderId, newState);
+              true;
+            } else {
+              let newState = {
+                protection with failedAttempts = protection.failedAttempts + 1;
+              };
+              folderProtections.add(folderId, newState);
+              false;
+            };
+          };
+          case (null) {
+            false;
+          };
+        };
+      };
+      case (null) {
+        false;
+      };
+    };
+  };
+
+  // Get the current protection status for a folder.
+  // Only the folder owner or an admin can view the full protection record.
+  public query ({ caller }) func getFolderProtectionStatus(folderId : Text) : async ?FolderProtection {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view folder protection status");
+    };
+
+    switch (folderMetadata.get(folderId)) {
+      case (?folder) {
+        if (folder.owner != caller and not AccessControl.isAdmin(accessControlState, caller)) {
+          Runtime.trap("Unauthorized: Only the folder owner or an admin can view folder protection status");
+        };
+        folderProtections.get(folderId);
+      };
+      case (null) {
+        Runtime.trap("Folder not found");
+      };
+    };
+  };
+
+  // User approval system functions
+  public query ({ caller }) func isCallerApproved() : async Bool {
+    AccessControl.hasPermission(accessControlState, caller, #admin) or UserApproval.isApproved(approvalState, caller);
+  };
+
+  public shared ({ caller }) func requestApproval() : async () {
+    // No auth check: any caller (including guests/anonymous) may request approval
+    UserApproval.requestApproval(approvalState, caller);
+  };
+
+  public shared ({ caller }) func setApproval(user : Principal, status : UserApproval.ApprovalStatus) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+    UserApproval.setApproval(approvalState, user, status);
+  };
+
+  public query ({ caller }) func listApprovals() : async [UserApproval.UserApprovalInfo] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+    UserApproval.listApprovals(approvalState);
+  };
+
+  // AC12 - Storage Management
+  public query ({ caller }) func getAllUsersQuotaTable() : async [(Principal, Text, Nat)] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can access storage management");
+    };
+
+    userProfiles.toArray().map(func((principal, profile)) { (principal, profile.name, getUserQuota(principal)) });
+  };
+
+  // AC13 - Storage Management
+  public shared ({ caller }) func setUserQuotas(quotas : [(Principal, Nat)]) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can set quotas");
+    };
+
+    quotas.forEach(func((principal, quota)) { userQuotas.add(principal, quota) });
+  };
+
+  public query ({ caller }) func getLoginLogTable() : async [ActivityLog] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can access storage management");
+    };
+
+    activityLogs.entries().toArray().map(func((_, log)) { log });
+  };
+
+  // Had to add this query globally for authorization to work
+  public query ({ caller }) func isAdmin(principal : Principal) : async Bool {
+    AccessControl.isAdmin(accessControlState, principal);
+  };
 };
+

@@ -1,4 +1,5 @@
-import { Button } from '@/components/ui/button';
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -6,19 +7,18 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Filter, X } from 'lucide-react';
-import type { FileFilters } from '../hooks/useFileFilters';
+} from "@/components/ui/select";
+import { Filter, X } from "lucide-react";
+import type { FileFilters } from "../hooks/useFileFilters";
 
 interface FileFilterDropdownProps {
   filters: FileFilters;
@@ -50,22 +50,22 @@ export default function FileFilterDropdown({
   };
 
   const handleSizeMinChange = (value: string) => {
-    const bytes = value ? parseFloat(value) * 1024 * 1024 : null; // Convert MB to bytes
+    const bytes = value ? Number.parseFloat(value) * 1024 * 1024 : null; // Convert MB to bytes
     onSizeRangeChange(bytes, filters.sizeRange.max);
   };
 
   const handleSizeMaxChange = (value: string) => {
-    const bytes = value ? parseFloat(value) * 1024 * 1024 : null; // Convert MB to bytes
+    const bytes = value ? Number.parseFloat(value) * 1024 * 1024 : null; // Convert MB to bytes
     onSizeRangeChange(filters.sizeRange.min, bytes);
   };
 
   const formatDateForInput = (timestamp: number | null): string => {
-    if (!timestamp) return '';
-    return new Date(timestamp).toISOString().split('T')[0];
+    if (!timestamp) return "";
+    return new Date(timestamp).toISOString().split("T")[0];
   };
 
   const formatSizeForInput = (bytes: number | null): string => {
-    if (!bytes) return '';
+    if (!bytes) return "";
     return (bytes / (1024 * 1024)).toFixed(2);
   };
 
@@ -76,7 +76,10 @@ export default function FileFilterDropdown({
           <Filter className="h-4 w-4 mr-2" />
           Filters
           {activeFilterCount > 0 && (
-            <Badge variant="default" className="ml-2 h-5 w-5 p-0 flex items-center justify-center rounded-full">
+            <Badge
+              variant="default"
+              className="ml-2 h-5 w-5 p-0 flex items-center justify-center rounded-full"
+            >
               {activeFilterCount}
             </Badge>
           )}
@@ -86,7 +89,12 @@ export default function FileFilterDropdown({
         <DropdownMenuLabel className="flex items-center justify-between">
           <span>Filter Files</span>
           {activeFilterCount > 0 && (
-            <Button variant="ghost" size="sm" onClick={onClearAll} className="h-6 px-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClearAll}
+              className="h-6 px-2"
+            >
               Clear All
             </Button>
           )}
@@ -113,7 +121,7 @@ export default function FileFilterDropdown({
                   variant="ghost"
                   size="icon"
                   className="absolute right-0 top-0 h-8 w-8"
-                  onClick={() => onNameFilterChange('')}
+                  onClick={() => onNameFilterChange("")}
                 >
                   <X className="h-3 w-3" />
                 </Button>
@@ -126,7 +134,10 @@ export default function FileFilterDropdown({
             <Label htmlFor="type-filter" className="text-xs font-medium">
               File Type
             </Label>
-            <Select value={filters.typeFilter} onValueChange={onTypeFilterChange}>
+            <Select
+              value={filters.typeFilter}
+              onValueChange={onTypeFilterChange}
+            >
               <SelectTrigger id="type-filter" className="h-8">
                 <SelectValue placeholder="All types" />
               </SelectTrigger>
@@ -146,7 +157,10 @@ export default function FileFilterDropdown({
             <Label className="text-xs font-medium">Date Range</Label>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label htmlFor="date-start" className="text-xs text-muted-foreground">
+                <Label
+                  htmlFor="date-start"
+                  className="text-xs text-muted-foreground"
+                >
                   From
                 </Label>
                 <Input
@@ -158,7 +172,10 @@ export default function FileFilterDropdown({
                 />
               </div>
               <div>
-                <Label htmlFor="date-end" className="text-xs text-muted-foreground">
+                <Label
+                  htmlFor="date-end"
+                  className="text-xs text-muted-foreground"
+                >
                   To
                 </Label>
                 <Input
@@ -177,7 +194,10 @@ export default function FileFilterDropdown({
             <Label className="text-xs font-medium">File Size (MB)</Label>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label htmlFor="size-min" className="text-xs text-muted-foreground">
+                <Label
+                  htmlFor="size-min"
+                  className="text-xs text-muted-foreground"
+                >
                   Min
                 </Label>
                 <Input
@@ -192,7 +212,10 @@ export default function FileFilterDropdown({
                 />
               </div>
               <div>
-                <Label htmlFor="size-max" className="text-xs text-muted-foreground">
+                <Label
+                  htmlFor="size-max"
+                  className="text-xs text-muted-foreground"
+                >
                   Max
                 </Label>
                 <Input

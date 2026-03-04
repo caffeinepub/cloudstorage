@@ -1,23 +1,32 @@
-import { useState, useRef } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Upload, X } from 'lucide-react';
-import { toast } from 'sonner';
-import { useUploadFile } from '../hooks/useQueries';
-import { Progress } from '@/components/ui/progress';
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Upload, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
+import { useRecentUploads } from "../contexts/RecentUploadsContext";
+import { useInternetIdentity } from "../hooks/useInternetIdentity";
+import { useUploadFile } from "../hooks/useQueries";
 
-export default function FileUpload() {
+interface FileUploadProps {
+  currentFolderId?: string | null;
+}
+
+export default function FileUpload({ currentFolderId }: FileUploadProps) {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadFile = useUploadFile();
+  const { addRecentUpload } = useRecentUploads();
+  const { identity } = useInternetIdentity();
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
+    if (e.type === "dragenter" || e.type === "dragover") {
       setDragActive(true);
-    } else if (e.type === 'dragleave') {
+    } else if (e.type === "dragleave") {
       setDragActive(false);
     }
   };
@@ -46,15 +55,28 @@ export default function FileUpload() {
 
   const handleUpload = async () => {
     if (selectedFiles.length === 0) {
-      toast.error('Please select files to upload');
+      toast.error("Please select files to upload");
       return;
     }
 
+    if (!identity) {
+      toast.error("You must be logged in to upload files");
+      return;
+    }
+
+    const owner = identity.getPrincipal();
+
     for (const file of selectedFiles) {
       try {
-        await uploadFile.mutateAsync(file);
+        const fileId = await uploadFile.mutateAsync({
+          file,
+          folderId: currentFolderId ?? null,
+        });
         toast.success(`${file.name} uploaded successfully`);
-      } catch (error) {
+
+        // Add to recent uploads context
+        addRecentUpload(fileId, file.name, BigInt(file.size), owner);
+      } catch {
         toast.error(`Failed to upload ${file.name}`);
       }
     }
@@ -64,9 +86,14 @@ export default function FileUpload() {
 
   return (
     <div className="space-y-4">
+      {currentFolderId && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Badge variant="outline">Uploading to current folder</Badge>
+        </div>
+      )}
       <Card
         className={`p-8 border-2 border-dashed transition-colors ${
-          dragActive ? 'border-primary bg-primary/5' : 'border-border'
+          dragActive ? "border-primary bg-primary/5" : "border-border"
         }`}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
@@ -75,7 +102,9 @@ export default function FileUpload() {
       >
         <div className="text-center">
           <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium mb-2">Drop files here or click to browse</h3>
+          <h3 className="text-lg font-medium mb-2">
+            Drop files here or click to browse
+          </h3>
           <p className="text-sm text-muted-foreground mb-4">
             Support for images, videos, documents, and more
           </p>
@@ -86,7 +115,9 @@ export default function FileUpload() {
             onChange={handleFileSelect}
             className="hidden"
           />
-          <Button onClick={() => fileInputRef.current?.click()}>Select Files</Button>
+          <Button onClick={() => fileInputRef.current?.click()}>
+            Select Files
+          </Button>
         </div>
       </Card>
 
@@ -94,22 +125,22 @@ export default function FileUpload() {
         <Card className="p-4">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="font-medium">Selected Files ({selectedFiles.length})</h4>
+              <h4 className="font-medium">
+                Selected Files ({selectedFiles.length})
+              </h4>
               <Button
                 onClick={handleUpload}
                 disabled={uploadFile.isPending}
                 size="sm"
               >
-                {uploadFile.isPending ? 'Uploading...' : 'Upload All'}
+                {uploadFile.isPending ? "Uploading..." : "Upload All"}
               </Button>
             </div>
-            {uploadFile.isPending && (
-              <Progress value={33} className="h-2" />
-            )}
+            {uploadFile.isPending && <Progress value={33} className="h-2" />}
             <div className="space-y-2">
               {selectedFiles.map((file, index) => (
                 <div
-                  key={index}
+                  key={`${file.name}-${file.size}-${index}`}
                   className="flex items-center justify-between p-2 bg-muted rounded-md"
                 >
                   <div className="flex-1 min-w-0">

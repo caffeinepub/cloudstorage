@@ -1,126 +1,76 @@
-import { useFavorites, useDownloadFile, useRecordFileAccess } from '../hooks/useQueries';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Star, FileIcon, Eye, Download } from 'lucide-react';
-import { toast } from 'sonner';
-import { useState } from 'react';
-import FilePreview from './FilePreview';
-import type { FileMetadata } from '../backend';
-import { Principal } from '@dfinity/principal';
+import { Skeleton } from "@/components/ui/skeleton";
+import { AlertTriangle, FileText, Pin } from "lucide-react";
+import React from "react";
+import { useGetFavorites } from "../hooks/useQueries";
+
+function formatBytes(bytes: bigint): string {
+  const n = Number(bytes);
+  if (n === 0) return "0 B";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
 
 export default function PinnedFiles() {
-  const { data: favorites, isLoading } = useFavorites();
-  const recordAccess = useRecordFileAccess();
-  const [previewFile, setPreviewFile] = useState<FileMetadata | null>(null);
-  const { data: fileData } = useDownloadFile(previewFile?.id || null);
-
-  const handlePreview = async (fileId: string, fileName: string) => {
-    const favorite = favorites?.find(f => f.fileId === fileId);
-    const metadata: FileMetadata = {
-      id: fileId,
-      name: fileName,
-      size: 0n,
-      owner: favorite?.owner || Principal.anonymous(),
-      uploadedAt: 0n,
-    };
-    setPreviewFile(metadata);
-    try {
-      await recordAccess.mutateAsync(fileId);
-    } catch (error) {
-      console.error('Failed to record file access:', error);
-    }
-  };
-
-  const handleDownload = async (fileId: string) => {
-    toast.info('Download functionality coming soon');
-    try {
-      await recordAccess.mutateAsync(fileId);
-    } catch (error) {
-      console.error('Failed to record file access:', error);
-    }
-  };
+  const { data: favorites, isLoading, isError } = useGetFavorites();
 
   if (isLoading) {
     return (
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Pinned Files</h3>
-        <div className="flex gap-4 overflow-x-auto pb-2">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="min-w-[200px] h-32 bg-muted rounded-lg animate-pulse" />
-          ))}
-        </div>
-      </Card>
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        {[1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="shrink-0 w-36 rounded-xl border border-border bg-card p-3 space-y-2"
+          >
+            <Skeleton className="h-8 w-8 rounded-lg" />
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex items-center gap-2 p-3 rounded-lg border border-border text-sm text-muted-foreground">
+        <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+        <span>Unable to load pinned files.</span>
+      </div>
     );
   }
 
   if (!favorites || favorites.length === 0) {
     return (
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Pinned Files</h3>
-        <div className="flex flex-col items-center justify-center py-8 text-center">
-          <Star className="h-12 w-12 text-muted-foreground mb-3" />
-          <p className="text-sm text-muted-foreground">
-            No pinned files yet. Star your favorite files for quick access.
-          </p>
-        </div>
-      </Card>
+      <div className="flex flex-col items-center justify-center py-6 text-center">
+        <Pin className="h-7 w-7 text-muted-foreground mb-2" />
+        <p className="text-sm text-muted-foreground">No pinned files yet</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Star files to pin them here
+        </p>
+      </div>
     );
   }
 
   return (
-    <>
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Star className="h-5 w-5 text-chart-1 fill-chart-1" />
-          Pinned Files
-        </h3>
-        <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
-          {favorites.map((favorite) => (
-            <div
-              key={favorite.fileId}
-              className="min-w-[200px] snap-start"
-            >
-              <Card className="p-4 hover:shadow-md transition-shadow h-full">
-                <div className="flex flex-col h-full">
-                  <FileIcon className="h-10 w-10 text-primary mb-3" />
-                  <h4 className="font-medium text-sm truncate mb-2" title={favorite.fileName}>
-                    {favorite.fileName}
-                  </h4>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    {(Number(favorite.size) / 1024).toFixed(2)} KB
-                  </p>
-                  <div className="flex gap-2 mt-auto">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => handlePreview(favorite.fileId, favorite.fileName)}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => handleDownload(favorite.fileId)}
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            </div>
-          ))}
+    <div className="flex gap-3 overflow-x-auto pb-1">
+      {favorites.map((fav) => (
+        <div
+          key={fav.fileId}
+          className="shrink-0 w-36 rounded-xl border border-border bg-card p-3 space-y-2 hover:border-primary/40 transition-colors cursor-pointer"
+        >
+          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+            <FileText className="h-4 w-4 text-primary" />
+          </div>
+          <p className="text-xs font-medium text-foreground truncate">
+            {fav.fileName}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {formatBytes(fav.size)}
+          </p>
         </div>
-      </Card>
-
-      {previewFile && (
-        <FilePreview
-          file={previewFile}
-          fileData={fileData ?? null}
-          onClose={() => setPreviewFile(null)}
-        />
-      )}
-    </>
+      ))}
+    </div>
   );
 }

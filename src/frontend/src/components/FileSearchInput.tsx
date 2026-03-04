@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Input } from '@/components/ui/input';
-import { Search, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Search, X } from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface FileSearchInputProps {
   value: string;
@@ -9,7 +9,11 @@ interface FileSearchInputProps {
   placeholder?: string;
 }
 
-export default function FileSearchInput({ value, onChange, placeholder = 'Search files by name or type...' }: FileSearchInputProps) {
+export default function FileSearchInput({
+  value,
+  onChange,
+  placeholder = "Search files by name or type...",
+}: FileSearchInputProps) {
   const [localValue, setLocalValue] = useState(value);
 
   useEffect(() => {
@@ -25,8 +29,8 @@ export default function FileSearchInput({ value, onChange, placeholder = 'Search
   }, [value]);
 
   const handleClear = () => {
-    setLocalValue('');
-    onChange('');
+    setLocalValue("");
+    onChange("");
   };
 
   return (

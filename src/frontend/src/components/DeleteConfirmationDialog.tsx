@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -6,17 +5,18 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
-import { AlertTriangle } from 'lucide-react';
-import type { TrashItem } from '../hooks/useQueries';
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { AlertTriangle } from "lucide-react";
+import { useState } from "react";
+import type { TrashMetadata } from "../backend";
 
 interface DeleteConfirmationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  selectedItems: TrashItem[];
+  selectedItems: TrashMetadata[];
   onConfirm: (secureWipe: boolean) => void;
   isEmptyTrash?: boolean;
 }
@@ -30,7 +30,10 @@ export default function DeleteConfirmationDialog({
 }: DeleteConfirmationDialogProps) {
   const [secureWipe, setSecureWipe] = useState(false);
 
-  const totalSize = selectedItems.reduce((acc, item) => acc + Number(item.metadata.size), 0);
+  const totalSize = selectedItems.reduce(
+    (acc, item) => acc + Number(item.metadata.size),
+    0,
+  );
   const formatSize = (bytes: number) => {
     const mb = bytes / (1024 * 1024);
     if (mb < 1024) return `${mb.toFixed(2)} MB`;
@@ -48,11 +51,12 @@ export default function DeleteConfirmationDialog({
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2 text-destructive">
             <AlertTriangle className="h-5 w-5" />
-            {isEmptyTrash ? 'Empty Trash?' : 'Permanently Delete Files?'}
+            {isEmptyTrash ? "Empty Trash?" : "Permanently Delete Files?"}
           </AlertDialogTitle>
           <AlertDialogDescription className="space-y-3">
             <p className="font-semibold">
-              This action cannot be undone. The following will be permanently deleted:
+              This action cannot be undone. The following will be permanently
+              deleted:
             </p>
             <div className="bg-muted p-3 rounded-md">
               <p className="text-sm">
@@ -76,7 +80,8 @@ export default function DeleteConfirmationDialog({
                 onCheckedChange={(checked) => setSecureWipe(checked as boolean)}
               />
               <Label htmlFor="secureWipe" className="text-sm cursor-pointer">
-                Secure wipe (cryptographically secure deletion for sensitive files)
+                Secure wipe (cryptographically secure deletion for sensitive
+                files)
               </Label>
             </div>
           </AlertDialogDescription>

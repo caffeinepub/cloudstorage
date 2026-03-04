@@ -1,7 +1,13 @@
-import { useInternetIdentity } from '../hooks/useInternetIdentity';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shield, Cloud, Lock, Zap } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Cloud, Lock, Shield, Zap } from "lucide-react";
+import { useInternetIdentity } from "../hooks/useInternetIdentity";
 
 export default function LoginPage() {
   const { login, isLoggingIn } = useInternetIdentity();
@@ -73,10 +79,11 @@ export default function LoginPage() {
               className="w-full"
               size="lg"
             >
-              {isLoggingIn ? 'Connecting...' : 'Sign In with Internet Identity'}
+              {isLoggingIn ? "Connecting..." : "Sign In with Internet Identity"}
             </Button>
             <p className="text-xs text-muted-foreground text-center mt-4">
-              By signing in, you agree to our Terms of Service and Privacy Policy
+              By signing in, you agree to our Terms of Service and Privacy
+              Policy
             </p>
           </CardContent>
         </Card>

@@ -1,91 +1,81 @@
-import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { useDeleteFolder } from '../hooks/useFolderQueries';
-import { toast } from 'sonner';
-import type { FolderMetadata } from '../backend';
-import { AlertTriangle } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Folder, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import type { Folder as FolderType } from "../backend";
+import { useDeleteFolderToTrash } from "../hooks/useQueries";
 
 interface DeleteFolderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  folder: FolderMetadata;
+  folder: FolderType | null;
 }
 
-export default function DeleteFolderDialog({ open, onOpenChange, folder }: DeleteFolderDialogProps) {
-  const [deleteOption, setDeleteOption] = useState<'delete' | 'move'>('move');
-  const deleteFolder = useDeleteFolder();
+export default function DeleteFolderDialog({
+  open,
+  onOpenChange,
+  folder,
+}: DeleteFolderDialogProps) {
+  const deleteFolderToTrash = useDeleteFolderToTrash();
 
-  const handleSubmit = async () => {
+  const handleDelete = async () => {
+    if (!folder) return;
     try {
-      await deleteFolder.mutateAsync({
-        folderId: folder.id,
-        deleteContents: deleteOption === 'delete',
-        moveContentsToParent: deleteOption === 'move',
-      });
-      toast.success('Folder deleted successfully');
+      await deleteFolderToTrash.mutateAsync({ folderId: folder.id });
+      toast.success(`"${folder.name}" moved to trash`);
       onOpenChange(false);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to delete folder');
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to delete folder");
     }
   };
+
+  if (!folder) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
+            <Trash2 className="h-5 w-5 text-destructive" />
             Delete Folder
           </DialogTitle>
+          <DialogDescription>
+            Move <span className="font-semibold">"{folder.name}"</span> to
+            trash? Files inside will be moved to root level.
+          </DialogDescription>
         </DialogHeader>
-
-        <div className="space-y-4 py-4">
-          <p className="text-sm text-muted-foreground">
-            You are about to delete <strong>{folder.name}</strong>. What would you like to do with its contents?
-          </p>
-
-          <RadioGroup value={deleteOption} onValueChange={(value) => setDeleteOption(value as 'delete' | 'move')}>
-            <div className="flex items-start space-x-2 p-3 rounded border">
-              <RadioGroupItem value="move" id="move" className="mt-1" />
-              <div className="flex-1">
-                <Label htmlFor="move" className="cursor-pointer font-medium">
-                  Move contents to parent folder
-                </Label>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Files and subfolders will be moved to the parent folder
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start space-x-2 p-3 rounded border border-destructive/50">
-              <RadioGroupItem value="delete" id="delete" className="mt-1" />
-              <div className="flex-1">
-                <Label htmlFor="delete" className="cursor-pointer font-medium text-destructive">
-                  Delete all contents
-                </Label>
-                <p className="text-sm text-muted-foreground mt-1">
-                  All files and subfolders will be permanently deleted
-                </p>
-              </div>
-            </div>
-          </RadioGroup>
-
-          <div className="bg-destructive/10 border border-destructive/20 rounded p-3">
-            <p className="text-sm text-destructive font-medium">
-              ⚠️ This action cannot be undone
-            </p>
-          </div>
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3 my-2">
+          <Folder className="h-5 w-5 text-amber-400 shrink-0" />
+          <span className="text-sm font-medium">{folder.name}</span>
         </div>
-
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={deleteFolderToTrash.isPending}
+          >
             Cancel
           </Button>
-          <Button variant="destructive" onClick={handleSubmit} disabled={deleteFolder.isPending}>
-            {deleteFolder.isPending ? 'Deleting...' : 'Delete Folder'}
+          <Button
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={deleteFolderToTrash.isPending}
+          >
+            {deleteFolderToTrash.isPending ? (
+              <span className="flex items-center gap-2">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                Deleting…
+              </span>
+            ) : (
+              "Move to Trash"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

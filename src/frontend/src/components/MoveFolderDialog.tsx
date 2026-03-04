@@ -1,83 +1,222 @@
-import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { useMoveFolder } from '../hooks/useFolderQueries';
-import { toast } from 'sonner';
-import type { FolderMetadata } from '../backend';
-import { Folder } from 'lucide-react';
+import { AlertCircle, ChevronRight, Folder as FolderIcon } from "lucide-react";
+import React, { useState } from "react";
+import { toast } from "sonner";
+import type { Folder } from "../backend";
+import { useListFolders, useMoveFolder } from "../hooks/useQueries";
+import { Alert, AlertDescription } from "./ui/alert";
+import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { ScrollArea } from "./ui/scroll-area";
 
 interface MoveFolderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  folder: FolderMetadata;
-  folders: FolderMetadata[];
+  folder: Folder | null;
 }
 
-export default function MoveFolderDialog({ open, onOpenChange, folder, folders }: MoveFolderDialogProps) {
-  const [selectedParentId, setSelectedParentId] = useState<string | null>(folder.parentFolderId || null);
+export default function MoveFolderDialog({
+  open,
+  onOpenChange,
+  folder,
+}: MoveFolderDialogProps) {
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const { data: folders = [] } = useListFolders();
   const moveFolder = useMoveFolder();
 
-  const getDescendantIds = (folderId: string): string[] => {
-    const descendants: string[] = [folderId];
-    const children = folders.filter((f) => f.parentFolderId === folderId);
-    children.forEach((child) => {
-      descendants.push(...getDescendantIds(child.id));
-    });
+  if (!folder) return null;
+
+  // Filter out the folder being moved and its descendants
+  const getDescendantIds = (folderId: string): Set<string> => {
+    const descendants = new Set<string>([folderId]);
+    let changed = true;
+
+    while (changed) {
+      changed = false;
+      for (const f of folders) {
+        if (
+          f.parentId &&
+          descendants.has(f.parentId) &&
+          !descendants.has(f.id)
+        ) {
+          descendants.add(f.id);
+          changed = true;
+        }
+      }
+    }
+
     return descendants;
   };
 
-  const excludedIds = getDescendantIds(folder.id);
-  const availableFolders = folders.filter((f) => !excludedIds.includes(f.id));
+  const descendantIds = getDescendantIds(folder.id);
+  const availableFolders = folders.filter((f) => !descendantIds.has(f.id));
 
-  const handleSubmit = async () => {
+  // Count nested items (folders and files) - simplified for UI display
+  const countNestedItems = (
+    folderId: string,
+  ): { folders: number; files: number } => {
+    const descendants = getDescendantIds(folderId);
+    return {
+      folders: descendants.size - 1, // Exclude the folder itself
+      files: 0, // We don't have file data in this component
+    };
+  };
+
+  const nestedCounts = countNestedItems(folder.id);
+
+  const handleSelectFolder = (folderId: string | null) => {
+    setSelectedFolderId(folderId);
+    setShowConfirmation(true);
+  };
+
+  const handleConfirmMove = async () => {
     try {
-      await moveFolder.mutateAsync({ folderId: folder.id, newParentFolderId: selectedParentId });
-      toast.success('Folder moved successfully');
+      await moveFolder.mutateAsync({
+        folderId: folder.id,
+        destFolderId: selectedFolderId,
+      });
+
+      toast.success("Folder Moved Successfully", {
+        description: selectedFolderId
+          ? `"${folder.name}" has been moved to the selected folder.`
+          : `"${folder.name}" has been moved to the root level.`,
+      });
+
       onOpenChange(false);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to move folder');
+      setShowConfirmation(false);
+      setSelectedFolderId(null);
+    } catch (error) {
+      console.error("Error moving folder:", error);
+
+      const errorMessage =
+        error instanceof Error ? error.message : "An unexpected error occurred";
+
+      toast.error("Failed to Move Folder", {
+        description: errorMessage,
+      });
+    }
+  };
+
+  const handleCancel = () => {
+    if (showConfirmation) {
+      setShowConfirmation(false);
+      setSelectedFolderId(null);
+    } else {
+      onOpenChange(false);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Move Folder</DialogTitle>
+          <DialogTitle>
+            {showConfirmation ? "Confirm Folder Move" : `Move "${folder.name}"`}
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <Label>Select Destination</Label>
-          <RadioGroup value={selectedParentId || 'root'} onValueChange={(value) => setSelectedParentId(value === 'root' ? null : value)}>
-            <div className="flex items-center space-x-2 p-2 rounded hover:bg-accent">
-              <RadioGroupItem value="root" id="root" />
-              <Label htmlFor="root" className="flex items-center gap-2 cursor-pointer flex-1">
-                <Folder className="h-4 w-4" />
-                Root (My Folders)
-              </Label>
-            </div>
-            {availableFolders.map((f) => (
-              <div key={f.id} className="flex items-center space-x-2 p-2 rounded hover:bg-accent">
-                <RadioGroupItem value={f.id} id={f.id} />
-                <Label htmlFor={f.id} className="flex items-center gap-2 cursor-pointer flex-1">
-                  <div className="w-4 h-4 rounded-full" style={{ backgroundColor: f.color }} />
-                  {f.name}
-                </Label>
-              </div>
-            ))}
-          </RadioGroup>
-        </div>
+        {!showConfirmation ? (
+          <>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Select a destination folder or move to root level:
+              </p>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={moveFolder.isPending}>
-            {moveFolder.isPending ? 'Moving...' : 'Move'}
-          </Button>
-        </DialogFooter>
+              <ScrollArea className="h-[300px] rounded-md border p-4">
+                <div className="space-y-2">
+                  {/* Root level option */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectFolder(null)}
+                    className="flex w-full items-center gap-2 rounded-md p-2 text-left hover:bg-accent"
+                  >
+                    <FolderIcon className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">
+                      Root Level (My Files)
+                    </span>
+                  </button>
+
+                  {/* Available folders */}
+                  {availableFolders.length === 0 ? (
+                    <p className="py-4 text-center text-sm text-muted-foreground">
+                      No other folders available
+                    </p>
+                  ) : (
+                    availableFolders.map((f) => (
+                      <button
+                        type="button"
+                        key={f.id}
+                        onClick={() => handleSelectFolder(f.id)}
+                        className="flex w-full items-center gap-2 rounded-md p-2 text-left hover:bg-accent"
+                      >
+                        <FolderIcon className="h-4 w-4 text-primary" />
+                        <span className="text-sm">{f.name}</span>
+                        <ChevronRight className="ml-auto h-4 w-4 text-muted-foreground" />
+                      </button>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={handleCancel}>
+                Cancel
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <div className="space-y-4">
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  You are about to move <strong>"{folder.name}"</strong>
+                  {selectedFolderId
+                    ? ` into "${availableFolders.find((f) => f.id === selectedFolderId)?.name}"`
+                    : " to the root level (My Files)"}
+                  .
+                </AlertDescription>
+              </Alert>
+
+              {nestedCounts.folders > 0 && (
+                <div className="rounded-md bg-muted p-3 text-sm">
+                  <p className="font-medium">This folder contains:</p>
+                  <ul className="mt-1 list-inside list-disc text-muted-foreground">
+                    {nestedCounts.folders > 0 && (
+                      <li>{nestedCounts.folders} nested folder(s)</li>
+                    )}
+                  </ul>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    All nested items will be moved along with this folder.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={handleCancel}
+                disabled={moveFolder.isPending}
+              >
+                Back
+              </Button>
+              <Button
+                onClick={handleConfirmMove}
+                disabled={moveFolder.isPending}
+              >
+                {moveFolder.isPending ? "Moving..." : "Continue"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

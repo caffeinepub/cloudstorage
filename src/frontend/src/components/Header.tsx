@@ -1,9 +1,6 @@
-import { Link } from '@tanstack/react-router';
-import { useInternetIdentity } from '../hooks/useInternetIdentity';
-import { useQueryClient } from '@tanstack/react-query';
-import { Button } from '@/components/ui/button';
-import { useTheme } from 'next-themes';
-import { Moon, Sun, Search, Bell } from 'lucide-react';
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,18 +8,24 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useGetCallerUserProfile, useUnreadNotificationsCount } from '../hooks/useQueries';
-import { Badge } from '@/components/ui/badge';
-import { useNavigate } from '@tanstack/react-router';
+} from "@/components/ui/dropdown-menu";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
+import { Bell, Moon, Search, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
+import { useInternetIdentity } from "../hooks/useInternetIdentity";
+import {
+  useGetCallerUserProfile,
+  useGetUnreadNotificationsCount,
+} from "../hooks/useQueries";
 
 export default function Header() {
   const { clear, identity } = useInternetIdentity();
   const queryClient = useQueryClient();
   const { theme, setTheme } = useTheme();
   const { data: userProfile } = useGetCallerUserProfile();
-  const { data: unreadCount } = useUnreadNotificationsCount();
+  const { data: unreadCount } = useGetUnreadNotificationsCount();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -31,11 +34,16 @@ export default function Header() {
   };
 
   const handleNotificationClick = () => {
-    navigate({ to: '/' });
+    navigate({ to: "/" });
     setTimeout(() => {
-      const notificationsSection = document.querySelector('[data-notifications]');
+      const notificationsSection = document.querySelector(
+        "[data-notifications]",
+      );
       if (notificationsSection) {
-        notificationsSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        notificationsSection.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
       }
     }, 100);
   };
@@ -79,18 +87,25 @@ export default function Header() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           >
-            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            {theme === "dark" ? (
+              <Sun className="h-5 w-5" />
+            ) : (
+              <Moon className="h-5 w-5" />
+            )}
           </Button>
 
           {identity && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                <Button
+                  variant="ghost"
+                  className="relative h-10 w-10 rounded-full"
+                >
                   <Avatar>
                     <AvatarFallback className="bg-gradient-to-br from-primary to-chart-2 text-white">
-                      {userProfile?.name?.charAt(0).toUpperCase() || 'U'}
+                      {userProfile?.name?.charAt(0).toUpperCase() || "U"}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
@@ -98,9 +113,11 @@ export default function Header() {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{userProfile?.name || 'User'}</p>
+                    <p className="text-sm font-medium leading-none">
+                      {userProfile?.name || "User"}
+                    </p>
                     <p className="text-xs leading-none text-muted-foreground">
-                      {userProfile?.email || 'No email'}
+                      {userProfile?.email || "No email"}
                     </p>
                   </div>
                 </DropdownMenuLabel>
@@ -109,7 +126,9 @@ export default function Header() {
                   <Link to="/settings">Settings</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout}>Log out</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleLogout}>
+                  Log out
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}

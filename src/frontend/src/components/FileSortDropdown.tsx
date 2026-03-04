@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -6,9 +6,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { ArrowUpDown, ArrowUp, ArrowDown, Check } from 'lucide-react';
-import type { SortBy, SortOrder } from '../hooks/useFileSorting';
+} from "@/components/ui/dropdown-menu";
+import { ArrowDown, ArrowUp, ArrowUpDown, Check } from "lucide-react";
+import type { SortBy, SortOrder } from "../hooks/useFileSorting";
 
 interface FileSortDropdownProps {
   sortBy: SortBy;
@@ -16,17 +16,21 @@ interface FileSortDropdownProps {
   onSortChange: (option: SortBy) => void;
 }
 
-export default function FileSortDropdown({ sortBy, sortOrder, onSortChange }: FileSortDropdownProps) {
+export default function FileSortDropdown({
+  sortBy,
+  sortOrder,
+  onSortChange,
+}: FileSortDropdownProps) {
   const sortOptions: { value: SortBy; label: string }[] = [
-    { value: 'name', label: 'Name' },
-    { value: 'date', label: 'Date' },
-    { value: 'size', label: 'Size' },
-    { value: 'type', label: 'Type' },
+    { value: "name", label: "Name" },
+    { value: "date", label: "Date" },
+    { value: "size", label: "Size" },
+    { value: "type", label: "Type" },
   ];
 
   const getSortIcon = (option: SortBy) => {
     if (sortBy !== option) return null;
-    return sortOrder === 'asc' ? (
+    return sortOrder === "asc" ? (
       <ArrowUp className="h-3 w-3 ml-auto" />
     ) : (
       <ArrowDown className="h-3 w-3 ml-auto" />
