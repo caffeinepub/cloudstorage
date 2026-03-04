@@ -124,8 +124,8 @@ export default function Notifications() {
         );
         return (
           <button
-            type="button"
             key={String(notification.id)}
+            type="button"
             className={`flex w-full gap-3 p-3 rounded-lg border transition-colors cursor-pointer text-left ${
               notification.isRead
                 ? "border-border bg-card"
@@ -133,6 +133,14 @@ export default function Notifications() {
             }`}
             onClick={() => {
               if (!notification.isRead) {
+                markAsRead.mutate(notification.id);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (
+                (e.key === "Enter" || e.key === " ") &&
+                !notification.isRead
+              ) {
                 markAsRead.mutate(notification.id);
               }
             }}

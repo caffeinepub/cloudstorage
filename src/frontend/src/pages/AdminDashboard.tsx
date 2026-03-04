@@ -40,8 +40,7 @@ import {
   useSetApproval,
 } from "../hooks/useQueries";
 
-// Hardcoded super-admin principal — always has admin access
-const HARDCODED_ADMIN_PRINCIPAL =
+const ADMIN_PRINCIPAL =
   "mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae";
 
 export default function AdminDashboard() {
@@ -58,9 +57,8 @@ export default function AdminDashboard() {
   const currentPrincipal =
     identity?.getPrincipal().toString().trim().toLowerCase() ?? "";
 
-  // Hardcoded admin is always treated as admin regardless of backend state
-  const isHardcodedAdmin =
-    currentPrincipal === HARDCODED_ADMIN_PRINCIPAL.toLowerCase();
+  // Hardcoded admin always has access, regardless of backend state
+  const isHardcodedAdmin = currentPrincipal === ADMIN_PRINCIPAL.toLowerCase();
   const isAdmin = isHardcodedAdmin || isAdminFromBackend;
 
   // Determine if a given principal string belongs to the current admin user
@@ -564,13 +562,11 @@ export default function AdminDashboard() {
                     {loginLogs
                       .slice()
                       .sort((a, b) => (a.timestamp > b.timestamp ? -1 : 1))
-                      .map((log, idx) => {
+                      .map((log, _idx) => {
                         const principalStr = log.user.toString();
                         const displayName = nameMap.get(principalStr);
                         return (
-                          <TableRow
-                            key={`${log.user.toString()}-${String(log.timestamp)}-${idx}`}
-                          >
+                          <TableRow key={log.timestamp.toString()}>
                             <TableCell>
                               <div className="flex items-center gap-2">
                                 <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">

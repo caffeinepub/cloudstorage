@@ -85,10 +85,14 @@ export default function MoveToFolderDialog({
                 <div className="space-y-2">
                   {folders.map((folder) => (
                     <button
-                      type="button"
                       key={folder.id}
+                      type="button"
                       className="flex w-full items-center space-x-3 p-3 rounded-lg border hover:bg-accent cursor-pointer text-left"
                       onClick={() => setSelectedFolderId(folder.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ")
+                          setSelectedFolderId(folder.id);
+                      }}
                     >
                       <RadioGroupItem value={folder.id} id={folder.id} />
                       <Label

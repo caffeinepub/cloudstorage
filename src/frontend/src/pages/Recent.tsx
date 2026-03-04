@@ -95,11 +95,10 @@ export default function Recent() {
   }, [recentFilesAsMetadata, searchFiles, filterFiles, sortFiles]);
 
   // Reset page when search/filter/sort changes
-  const { resetPage: recentResetPage } = pagination;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: searchQuery/filters/sortBy/sortOrder trigger the reset intentionally
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally triggered only when search/filter/sort values change
   useEffect(() => {
-    recentResetPage();
-  }, [searchQuery, filters, sortBy, sortOrder, recentResetPage]);
+    pagination.resetPage();
+  }, [searchQuery, filters, sortBy, sortOrder]);
 
   const paginatedFiles = pagination.paginatedData(processedFiles);
 
@@ -219,7 +218,7 @@ export default function Recent() {
         await addFavorite.mutateAsync(fileId);
         toast.success("Added to favorites");
       }
-    } catch {
+    } catch (_error) {
       toast.error("Failed to update favorites");
     }
   };
@@ -530,19 +529,14 @@ function RecentFileCard({
   const { data: isFav } = useIsFavorite(file.id);
 
   return (
-    <div
-      className={`relative group flex flex-col rounded-xl border border-border bg-card hover:bg-accent/5 transition-colors p-3 gap-2 cursor-pointer ${selected ? "bg-primary/10 border-primary" : ""}`}
+    <button
+      type="button"
+      className={`relative group flex flex-col rounded-xl border border-border bg-card hover:bg-accent/5 transition-colors p-3 gap-2 cursor-pointer text-left w-full ${selected ? "bg-primary/10 border-primary" : ""}`}
       onClick={() => onPreview(file)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onPreview(file);
-      }}
-      // biome-ignore lint/a11y/useSemanticElements: container holds nested interactive elements
-      role="button"
-      tabIndex={0}
     >
       <button
         type="button"
-        className="absolute top-2 left-2 z-10 p-0 bg-transparent border-0"
+        className="absolute top-2 left-2 z-10"
         onClick={onCheckboxClick}
       >
         <Checkbox
@@ -560,6 +554,7 @@ function RecentFileCard({
           className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
+          role="presentation"
         >
           <Button
             variant="ghost"
@@ -604,7 +599,7 @@ function RecentFileCard({
           {(Number(file.size) / 1024).toFixed(1)} KB
         </p>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -630,21 +625,12 @@ function RecentFileRow({
   const { data: isFav } = useIsFavorite(file.id);
 
   return (
-    <div
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/5 group transition-colors cursor-pointer ${selected ? "bg-primary/5 border-l-2 border-l-primary" : ""}`}
+    <button
+      type="button"
+      className={`flex w-full items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/5 group transition-colors cursor-pointer text-left ${selected ? "bg-primary/5 border-l-2 border-l-primary" : ""}`}
       onClick={() => onPreview(file)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onPreview(file);
-      }}
-      // biome-ignore lint/a11y/useSemanticElements: container holds nested interactive elements
-      role="button"
-      tabIndex={0}
     >
-      <button
-        type="button"
-        className="shrink-0 p-0 bg-transparent border-0"
-        onClick={onCheckboxClick}
-      >
+      <button type="button" onClick={onCheckboxClick} className="shrink-0">
         <Checkbox
           checked={selected}
           onCheckedChange={() => {}}
@@ -667,6 +653,7 @@ function RecentFileRow({
         className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
+        role="presentation"
       >
         <Button
           variant="ghost"
@@ -701,6 +688,6 @@ function RecentFileRow({
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
       </div>
-    </div>
+    </button>
   );
 }

@@ -16,7 +16,7 @@ import {
 import { Principal } from "@icp-sdk/core/principal";
 import { format } from "date-fns";
 import { CalendarIcon, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { TrashMetadata } from "../backend";
 
 interface TrashFiltersProps {
@@ -37,10 +37,7 @@ export default function TrashFilters({
   const [ownerString, setOwnerString] = useState<string>("all");
   const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
   const [originalPath, setOriginalPath] = useState("");
-  const onFilteredDataChangeRef = useRef(onFilteredDataChange);
-  onFilteredDataChangeRef.current = onFilteredDataChange;
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: dateRange is included to re-filter when date range changes
   useEffect(() => {
     let filtered = trashData;
 
@@ -83,15 +80,15 @@ export default function TrashFilters({
       );
     }
 
-    onFilteredDataChangeRef.current(filtered);
+    onFilteredDataChange(filtered);
   }, [
     searchTerm,
     fileType,
     ownerString,
-    dateRange,
     originalPath,
     trashData,
     isAdmin,
+    onFilteredDataChange,
   ]);
 
   const handleOwnerChange = (value: string) => {
@@ -103,7 +100,7 @@ export default function TrashFilters({
         try {
           const principal = Principal.fromText(value);
           onOwnerFilterChange(principal);
-        } catch {
+        } catch (_error) {
           onOwnerFilterChange(null);
         }
       }

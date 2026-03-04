@@ -66,9 +66,10 @@ const Favorites: React.FC = () => {
       {/* Loading state */}
       {isLoading && (
         <div className="space-y-3">
-          {(["sk1", "sk2", "sk3", "sk4", "sk5"] as const).map((sk) => (
+          {[...Array(5)].map((_, i) => (
             <div
-              key={sk}
+              // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholders have no meaningful identity
+              key={i}
               className="flex items-center gap-3 px-4 py-3 rounded-lg border border-border"
             >
               <Skeleton className="h-5 w-5 rounded" />

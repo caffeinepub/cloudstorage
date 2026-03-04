@@ -140,7 +140,9 @@ export default function PaginationControls({
           {/* Page numbers */}
           {pageNumbers.map((page, idx) =>
             page === "ellipsis" ? (
-              <PaginationItem key={`ellipsis-${idx}-${currentPage}`}>
+              <PaginationItem
+                key={`ellipsis-before-${pageNumbers[idx + 1] ?? "end"}`}
+              >
                 <PaginationEllipsis />
               </PaginationItem>
             ) : (

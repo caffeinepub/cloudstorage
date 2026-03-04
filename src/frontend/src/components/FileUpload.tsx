@@ -76,7 +76,7 @@ export default function FileUpload({ currentFolderId }: FileUploadProps) {
 
         // Add to recent uploads context
         addRecentUpload(fileId, file.name, BigInt(file.size), owner);
-      } catch {
+      } catch (_error) {
         toast.error(`Failed to upload ${file.name}`);
       }
     }
@@ -140,7 +140,7 @@ export default function FileUpload({ currentFolderId }: FileUploadProps) {
             <div className="space-y-2">
               {selectedFiles.map((file, index) => (
                 <div
-                  key={`${file.name}-${file.size}-${index}`}
+                  key={file.name}
                   className="flex items-center justify-between p-2 bg-muted rounded-md"
                 >
                   <div className="flex-1 min-w-0">

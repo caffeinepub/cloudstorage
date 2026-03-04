@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/card";
 import { useQueryClient } from "@tanstack/react-query";
 import { Clock, HardDrive, LogOut, RefreshCw, XCircle } from "lucide-react";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect } from "react";
 import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useIsCallerApproved, useRequestApproval } from "../hooks/useQueries";
@@ -25,15 +25,13 @@ export default function WaitingApproval() {
   } = useIsCallerApproved();
 
   const requestApprovalMutation = useRequestApproval();
-  const requestApprovalMutateRef = useRef(requestApprovalMutation.mutate);
-  requestApprovalMutateRef.current = requestApprovalMutation.mutate;
 
   // Auto-submit approval request when the actor is ready and user is authenticated
   useEffect(() => {
     if (actor && !actorFetching && identity) {
-      requestApprovalMutateRef.current();
+      requestApprovalMutation.mutate();
     }
-  }, [actor, actorFetching, identity]);
+  }, [actor, actorFetching, identity, requestApprovalMutation.mutate]);
 
   const handleLogout = async () => {
     await clear();

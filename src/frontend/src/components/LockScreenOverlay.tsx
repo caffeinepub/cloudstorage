@@ -29,10 +29,11 @@ export default function LockScreenOverlay({
     : "?";
 
   return (
-    <dialog
-      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background/95 backdrop-blur-md w-full h-full max-w-none max-h-none border-0 p-0 m-0 open:flex"
+    <div
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background/95 backdrop-blur-md"
+      aria-modal="true"
+      role="alertdialog"
       aria-label="Session locked"
-      open
     >
       {/* Background pattern */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -75,6 +76,6 @@ export default function LockScreenOverlay({
           Your data is safe. Unlock to continue where you left off.
         </p>
       </div>
-    </dialog>
+    </div>
   );
 }

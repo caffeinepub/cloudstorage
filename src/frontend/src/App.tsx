@@ -116,8 +116,8 @@ declare module "@tanstack/react-router" {
   }
 }
 
-// Hardcoded super-admin principal — always bypasses approval flow
-const HARDCODED_ADMIN_PRINCIPAL =
+// Hardcoded admin principal — always bypasses the approval/registration flow
+const ADMIN_PRINCIPAL =
   "mgyr5-y3u63-q5gfr-gvkv7-etmf3-nz3hc-uxmc2-7glom-54ilt-kpuzm-vae";
 
 // ─── Inner app that has access to identity + actor ───────────────────────────
@@ -139,9 +139,9 @@ function AppInner() {
   const isAuthenticated = !!identity;
   const isActorReady = !!actor && !actorFetching;
 
-  // Check if current user is the hardcoded admin principal
-  const callerPrincipal = identity?.getPrincipal()?.toText();
-  const isHardcodedAdmin = callerPrincipal === HARDCODED_ADMIN_PRINCIPAL;
+  // Check if the current user is the hardcoded admin
+  const callerPrincipal = identity?.getPrincipal()?.toText() ?? "";
+  const isHardcodedAdmin = callerPrincipal === ADMIN_PRINCIPAL;
 
   // Hard timeout on actor connection
   useEffect(() => {
@@ -169,27 +169,42 @@ function AppInner() {
       setProfileLoading(true);
       setApprovalLoading(true);
       try {
-        // Hardcoded admin is always approved — skip the backend approval check
         if (isHardcodedAdmin) {
-          const profile = await actor.getCallerUserProfile();
-          if (!cancelled) {
-            setUserProfile(profile);
-            setIsApproved(true);
+          // Admin principal: auto-initialize backend role if needed, then load profile
+          try {
+            await actor._initializeAccessControlWithSecret(
+              "CAFFEINE_ADMIN_SECRET",
+            );
+          } catch {
+            // Already initialized or secret mismatch — that's fine, continue
           }
+          // Force approval status to true for the hardcoded admin
+          if (!cancelled) setIsApproved(true);
+          // Try to get the profile; may be null if not yet created
+          let profile: { name: string; email: string } | null = null;
+          try {
+            profile = (await actor.getCallerUserProfile()) as {
+              name: string;
+              email: string;
+            } | null;
+          } catch {
+            profile = null;
+          }
+          if (!cancelled) setUserProfile(profile as any);
         } else {
           const [profile, approved] = await Promise.all([
             actor.getCallerUserProfile(),
             actor.isCallerApproved(),
           ]);
           if (!cancelled) {
-            setUserProfile(profile);
-            setIsApproved(approved);
+            setUserProfile(profile as any);
+            setIsApproved(approved as boolean);
           }
         }
       } catch {
         if (!cancelled) {
           setUserProfile(null);
-          // Hardcoded admin is approved even if backend call fails
+          // If admin principal and error, still grant access
           setIsApproved(!!isHardcodedAdmin);
         }
       } finally {

@@ -158,24 +158,21 @@ export default function Trash() {
   }, []);
 
   // Initialize filtered items when tab changes; also reset pagination and selection
-  const { resetPage: filesResetPage } = filesPagination;
-  const { resetPage: foldersResetPage } = foldersPagination;
   useEffect(() => {
     setFilteredItems(currentTabItems);
     setSelectedItemIds(new Set());
-    filesResetPage();
-    foldersResetPage();
-  }, [currentTabItems, filesResetPage, foldersResetPage]);
+    filesPagination.resetPage();
+    foldersPagination.resetPage();
+  }, [currentTabItems, filesPagination.resetPage, foldersPagination.resetPage]);
 
   // Reset pagination when sort changes
-  // biome-ignore lint/correctness/useExhaustiveDependencies: sortColumn/sortDirection trigger the reset intentionally
   useEffect(() => {
     if (activeTab === "files") {
-      filesResetPage();
+      filesPagination.resetPage();
     } else {
-      foldersResetPage();
+      foldersPagination.resetPage();
     }
-  }, [sortColumn, sortDirection, activeTab, filesResetPage, foldersResetPage]);
+  }, [activeTab, filesPagination.resetPage, foldersPagination.resetPage]);
 
   const getFileIcon = (fileName: string) => {
     const ext = fileName.split(".").pop()?.toLowerCase() || "";

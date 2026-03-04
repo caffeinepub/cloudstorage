@@ -35,11 +35,10 @@ export default function SharedWithMe() {
   );
 
   // Reset page when search changes
-  const { resetPage } = pagination;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: search triggers the reset intentionally
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally triggered only when search changes
   useEffect(() => {
-    resetPage();
-  }, [search, resetPage]);
+    pagination.resetPage();
+  }, [search]);
 
   const paginatedShares = pagination.paginatedData(filteredShares);
   const _totalPages = Math.max(
@@ -342,8 +341,19 @@ export default function SharedWithMe() {
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <button
                       type="button"
-                      onClick={(e) => toggleSelection(share.fileId, e)}
-                      className="p-0 bg-transparent border-0 cursor-pointer"
+                      onClick={(e) =>
+                        toggleSelection(
+                          share.fileId,
+                          e as unknown as React.MouseEvent,
+                        )
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ")
+                          toggleSelection(
+                            share.fileId,
+                            e as unknown as React.MouseEvent,
+                          );
+                      }}
                     >
                       <Checkbox
                         checked={selectedIds.has(share.fileId)}

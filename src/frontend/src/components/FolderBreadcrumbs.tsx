@@ -17,7 +17,6 @@ function FolderCrumb({
 
   if (!folder) return null;
 
-  const _crumbs: { id: string; name: string }[] = [];
   // Build crumb chain by walking up parentId
   // We only have the current folder here; parent crumbs are rendered recursively
   return (

@@ -787,12 +787,10 @@ function FolderRow({
   onProtectionLoaded,
 }: FolderRowProps) {
   const { data: protection } = useGetFolderProtectionStatus(folder.id);
-  const onProtectionLoadedRef = React.useRef(onProtectionLoaded);
-  onProtectionLoadedRef.current = onProtectionLoaded;
 
   React.useEffect(() => {
-    onProtectionLoadedRef.current(protection);
-  }, [protection]);
+    onProtectionLoaded(protection);
+  }, [protection, onProtectionLoaded]);
 
   const isProtected = !!protection?.hashedPassword;
   const isLocked = protection?.isLocked ?? false;
@@ -805,11 +803,8 @@ function FolderRow({
       )}
       onClick={onClick}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onClick();
+        if (e.key === "Enter" || e.key === " ") onClick?.();
       }}
-      // biome-ignore lint/a11y/useSemanticElements: container holds nested interactive elements (checkbox)
-      role="button"
-      tabIndex={0}
     >
       <Checkbox
         checked={isSelected}
@@ -912,12 +907,10 @@ function FolderCard({
   onProtectionLoaded,
 }: FolderCardProps) {
   const { data: protection } = useGetFolderProtectionStatus(folder.id);
-  const onProtectionLoadedRef = React.useRef(onProtectionLoaded);
-  onProtectionLoadedRef.current = onProtectionLoaded;
 
   React.useEffect(() => {
-    onProtectionLoadedRef.current(protection);
-  }, [protection]);
+    onProtectionLoaded(protection);
+  }, [protection, onProtectionLoaded]);
 
   const isProtected = !!protection?.hashedPassword;
   const isLocked = protection?.isLocked ?? false;
@@ -930,11 +923,8 @@ function FolderCard({
       )}
       onClick={onClick}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onClick();
+        if (e.key === "Enter" || e.key === " ") onClick?.();
       }}
-      // biome-ignore lint/a11y/useSemanticElements: container holds nested interactive elements (checkbox)
-      role="button"
-      tabIndex={0}
     >
       <Checkbox
         checked={isSelected}
