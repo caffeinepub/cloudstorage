@@ -2,6 +2,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, FileText, FolderPlus, Upload } from "lucide-react";
 import type React from "react";
+import { useState } from "react";
+import NewDocumentDialog from "../components/NewDocumentDialog";
 import Notifications from "../components/Notifications";
 import PinnedFiles from "../components/PinnedFiles";
 import RecentActivityCard from "../components/RecentActivityCard";
@@ -22,6 +24,8 @@ function SectionCard({
 }
 
 export default function Home() {
+  const [showNewDocDialog, setShowNewDocDialog] = useState(false);
+
   return (
     <RecentUploadsProvider>
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -61,15 +65,17 @@ export default function Home() {
                   New Folder
                 </span>
               </Link>
-              <Link
-                to="/dashboard"
+              <button
+                type="button"
+                onClick={() => setShowNewDocDialog(true)}
                 className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:border-primary/40 hover:bg-primary/5 transition-colors text-center"
+                data-ocid="home.new_document.open_modal_button"
               >
                 <FileText className="h-6 w-6 text-primary" />
                 <span className="text-xs font-medium text-foreground">
                   New Document
                 </span>
-              </Link>
+              </button>
             </div>
           </div>
         </div>
@@ -104,6 +110,12 @@ export default function Home() {
           </Link>
         </div>
       </div>
+
+      <NewDocumentDialog
+        open={showNewDocDialog}
+        onOpenChange={setShowNewDocDialog}
+        currentFolderId={null}
+      />
     </RecentUploadsProvider>
   );
 }

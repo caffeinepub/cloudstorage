@@ -1,10 +1,16 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AuthClient } from "@dfinity/auth-client";
 import { AlertCircle, Eye, EyeOff, Loader2, Shield } from "lucide-react";
 import React, { useState } from "react";
-import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { hashWithSHA256 } from "../utils/crypto";
+
+// Internet Identity URL (matches vite.config.ts)
+const II_URL =
+  typeof process !== "undefined" && process.env?.II_URL
+    ? process.env.II_URL
+    : "https://identity.internetcomputer.org/";
 
 interface UnlockDialogProps {
   userName: string;
@@ -26,10 +32,9 @@ export default function UnlockDialog({
   const [error, setError] = useState("");
   const [attempts, setAttempts] = useState(0);
   const [isVerifying, setIsVerifying] = useState(false);
-  const { login, loginStatus } = useInternetIdentity();
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const isLocked = attempts >= MAX_ATTEMPTS;
-  const isLoggingIn = loginStatus === "logging-in";
 
   const handlePinUnlock = async () => {
     if (!pin.trim()) {
@@ -77,14 +82,32 @@ export default function UnlockDialog({
   };
 
   const handleIdentityUnlock = async () => {
+    setError("");
+    setIsLoggingIn(true);
     try {
-      setError("");
-      await login();
+      // Create a fresh AuthClient to force II re-authentication even if a
+      // delegation is already stored.  We do NOT use the app-level hook here
+      // because that hook guards against re-login when already authenticated.
+      const client = await AuthClient.create({
+        idleOptions: { disableIdle: true, disableDefaultIdleCallback: true },
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        client.login({
+          identityProvider: II_URL,
+          maxTimeToLive: BigInt(24 * 30) * BigInt(3_600_000_000_000),
+          onSuccess: () => resolve(),
+          onError: (err) => reject(new Error(err ?? "Authentication failed")),
+        });
+      });
+
       onUnlockAttempt("identity", true);
       onUnlockSuccess();
     } catch {
       onUnlockAttempt("identity", false);
       setError("Internet Identity authentication failed. Please try again.");
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 

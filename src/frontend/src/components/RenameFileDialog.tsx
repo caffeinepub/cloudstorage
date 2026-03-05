@@ -13,13 +13,19 @@ import { Loader2, Pencil } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { useRenameFolder } from "../hooks/useQueries";
+import {
+  useDeleteFile,
+  useDownloadFile,
+  useUploadFile,
+} from "../hooks/useQueries";
 
 interface RenameFileDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   fileId: string;
   currentName: string;
+  fileSize?: bigint;
+  folderId?: string;
   /** Called after a successful rename with the new name */
   onRenamed?: (newName: string) => void;
 }
@@ -27,20 +33,26 @@ interface RenameFileDialogProps {
 /**
  * Dialog for renaming a file.
  *
- * NOTE: The backend does not expose a dedicated `renameFile` endpoint.
- * This dialog is wired up and ready; once the backend adds `renameFile`,
- * replace the mutation call below with the real hook.
- * For now it shows a friendly error toast informing the user.
+ * Because the backend does not expose a dedicated `renameFile` endpoint,
+ * this dialog implements rename via:
+ *   1. Download file content
+ *   2. Re-upload with the new name (same folder)
+ *   3. Soft-delete the original file
  */
 export default function RenameFileDialog({
   open,
   onOpenChange,
-  fileId: _fileId,
+  fileId,
   currentName,
-  onRenamed: _onRenamed,
+  folderId,
+  onRenamed,
 }: RenameFileDialogProps) {
   const [name, setName] = useState(currentName);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const downloadFile = useDownloadFile();
+  const uploadFile = useUploadFile();
+  const deleteFile = useDeleteFile();
 
   // Keep the input in sync when the dialog opens for a different file
   useEffect(() => {
@@ -61,8 +73,32 @@ export default function RenameFileDialog({
 
     setIsSubmitting(true);
     try {
-      // Backend does not yet expose renameFile — show informative message.
-      toast.error("Rename file is not yet supported by the backend.");
+      // 1. Download file content
+      const downloaded = await downloadFile.mutateAsync(fileId);
+      if (!downloaded?.data)
+        throw new Error("Could not download file to rename");
+
+      // 2. Create a new File object with the new name and same content
+      const blob = new Blob([downloaded.data]);
+      const newFile = new File([blob], trimmed, {
+        type: blob.type || "application/octet-stream",
+      });
+
+      // 3. Upload with new name (preserving folder association)
+      await uploadFile.mutateAsync({
+        file: newFile,
+        folderId: folderId ?? null,
+      });
+
+      // 4. Soft-delete the original file
+      await deleteFile.mutateAsync({
+        fileId,
+        originalPath: folderId ? `/folder/${folderId}` : "/",
+      });
+
+      toast.success(`Renamed to "${trimmed}"`);
+      onRenamed?.(trimmed);
+      onOpenChange(false);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to rename file.";
       toast.error(msg);
@@ -95,6 +131,7 @@ export default function RenameFileDialog({
               placeholder="Enter file name"
               autoFocus
               disabled={isSubmitting}
+              data-ocid="rename.input"
             />
           </div>
 
@@ -104,10 +141,15 @@ export default function RenameFileDialog({
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
+              data-ocid="rename.cancel_button"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || !name.trim()}>
+            <Button
+              type="submit"
+              disabled={isSubmitting || !name.trim()}
+              data-ocid="rename.submit_button"
+            >
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

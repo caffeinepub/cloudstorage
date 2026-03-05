@@ -80,6 +80,24 @@ export default function AdminDashboard() {
   const pendingApprovals =
     approvals?.filter((a) => a.status === ApprovalStatus.pending) ?? [];
 
+  // Build the full registrations list, injecting a synthetic admin entry if the
+  // hardcoded admin principal is not already present in the approvals data.
+  const allRegistrations = React.useMemo(() => {
+    const list = approvals ? [...approvals] : [];
+    const adminAlreadyPresent = list.some(
+      (a) =>
+        a.principal.toString().trim().toLowerCase() ===
+        ADMIN_PRINCIPAL.toLowerCase(),
+    );
+    if (!adminAlreadyPresent) {
+      list.unshift({
+        principal: Principal.fromText(ADMIN_PRINCIPAL),
+        status: ApprovalStatus.approved,
+      });
+    }
+    return list;
+  }, [approvals]);
+
   const handleApprove = (principalStr: string) => {
     setApprovalMutation.mutate(
       {
@@ -271,7 +289,10 @@ export default function AdminDashboard() {
                         setApprovalMutation.isPending &&
                         setApprovalMutation.variables?.user.toString() ===
                           principalStr;
-                      const isAdminRow = isCurrentAdminUser(principalStr);
+                      const isAdminRow =
+                        principalStr.trim().toLowerCase() ===
+                          ADMIN_PRINCIPAL.toLowerCase() ||
+                        isCurrentAdminUser(principalStr);
                       const displayName = tableDataLoading
                         ? null
                         : nameMap.get(principalStr) || null;
@@ -286,6 +307,8 @@ export default function AdminDashboard() {
                               <Skeleton className="h-4 w-24" />
                             ) : displayName ? (
                               <span className="font-medium">{displayName}</span>
+                            ) : isAdminRow ? (
+                              <span className="font-medium">Admin</span>
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
@@ -377,7 +400,7 @@ export default function AdminDashboard() {
                     </div>
                   ))}
                 </div>
-              ) : !approvals || approvals.length === 0 ? (
+              ) : allRegistrations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <Users className="h-10 w-10 text-muted-foreground mb-3" />
                   <p className="text-sm text-muted-foreground">
@@ -396,13 +419,16 @@ export default function AdminDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {approvals.map((approval) => {
+                    {allRegistrations.map((approval) => {
                       const principalStr = approval.principal.toString();
                       const isProcessing =
                         setApprovalMutation.isPending &&
                         setApprovalMutation.variables?.user.toString() ===
                           principalStr;
-                      const isAdminRow = isCurrentAdminUser(principalStr);
+                      const isAdminRow =
+                        principalStr.trim().toLowerCase() ===
+                          ADMIN_PRINCIPAL.toLowerCase() ||
+                        isCurrentAdminUser(principalStr);
                       const displayName = tableDataLoading
                         ? null
                         : nameMap.get(principalStr) || null;
@@ -417,6 +443,8 @@ export default function AdminDashboard() {
                               <Skeleton className="h-4 w-24" />
                             ) : displayName ? (
                               <span className="font-medium">{displayName}</span>
+                            ) : isAdminRow ? (
+                              <span className="font-medium">Admin</span>
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}

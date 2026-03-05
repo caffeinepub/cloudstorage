@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import {
+  CheckSquare,
   Download,
   Edit,
   Eye,
@@ -19,6 +20,7 @@ import {
   MoreVertical,
   Move,
   Share2,
+  Square,
   Star,
   Trash2,
   Unlock,
@@ -34,6 +36,7 @@ import { usePagination } from "../hooks/usePagination";
 import {
   useAddFavorite,
   useDeleteFile,
+  useDeleteFolderToTrash,
   useDownloadFile,
   useGetFavorites,
   useGetFolderProtectionStatus,
@@ -74,6 +77,22 @@ function formatFileSize(bytes: bigint | number): string {
 
 function getFileExtension(name: string): string {
   return name.split(".").pop()?.toUpperCase() || "FILE";
+}
+
+/** Format a nanosecond BigInt timestamp to a human-readable date string */
+function formatTimestamp(ns: bigint): string {
+  try {
+    const ms = Number(ns / BigInt(1_000_000));
+    const date = new Date(ms);
+    if (Number.isNaN(date.getTime())) return "—";
+    return date.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return "—";
+  }
 }
 
 export default function FileList({
@@ -141,6 +160,7 @@ export default function FileList({
   const addFavoriteMutation = useAddFavorite();
   const removeFavoriteMutation = useRemoveFavorite();
   const deleteFileMutation = useDeleteFile();
+  const deleteFolderToTrashMutation = useDeleteFolderToTrash();
 
   const favoriteIds = new Set(favorites.map((f) => f.fileId));
 
@@ -322,6 +342,21 @@ export default function FileList({
     setSelectedFolders([]);
   };
 
+  const totalItems = currentFolders.length + processedFiles.length;
+  const allSelected =
+    totalItems > 0 &&
+    selectedFiles.length === processedFiles.length &&
+    selectedFolders.length === currentFolders.length;
+
+  const handleSelectAll = () => {
+    if (allSelected) {
+      clearSelection();
+    } else {
+      setSelectedFolders(currentFolders.map((f) => f.id));
+      setSelectedFiles(paginatedFiles.map((f) => f.id));
+    }
+  };
+
   const totalSelected = selectedFiles.length + selectedFolders.length;
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -358,14 +393,53 @@ export default function FileList({
         onViewModeChange={setViewMode}
       />
 
+      {/* Select All row — always visible when there is content */}
+      {hasContent && (
+        <div className="flex items-center gap-2 px-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-muted-foreground hover:text-foreground gap-1.5"
+            onClick={handleSelectAll}
+            data-ocid="files.toggle"
+          >
+            {allSelected ? (
+              <CheckSquare className="h-4 w-4 text-primary" />
+            ) : (
+              <Square className="h-4 w-4" />
+            )}
+            {allSelected ? "Deselect All" : "Select All"}
+          </Button>
+        </div>
+      )}
+
       {/* Bulk action bar */}
       {totalSelected > 0 && (
         <div className="flex items-center gap-2 p-3 bg-primary/10 rounded-lg border border-primary/20 flex-wrap">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-primary gap-1.5 font-medium"
+            onClick={handleSelectAll}
+            data-ocid="files.select_all.toggle"
+          >
+            {allSelected ? (
+              <CheckSquare className="h-4 w-4" />
+            ) : (
+              <Square className="h-4 w-4" />
+            )}
+            {allSelected ? "Deselect All" : "Select All"}
+          </Button>
           <span className="text-sm font-medium text-primary">
             {totalSelected} selected
           </span>
           <div className="flex-1" />
-          <Button size="sm" variant="outline" onClick={handleBulkDownload}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleBulkDownload}
+            data-ocid="files.bulk.button"
+          >
             <Download className="h-4 w-4 mr-1" />
             Download
           </Button>
@@ -373,6 +447,7 @@ export default function FileList({
             size="sm"
             variant="outline"
             onClick={() => setShowBulkShare(true)}
+            data-ocid="files.bulk.secondary_button"
           >
             <Share2 className="h-4 w-4 mr-1" />
             Share
@@ -381,6 +456,7 @@ export default function FileList({
             size="sm"
             variant="outline"
             onClick={() => setShowBulkMove(true)}
+            data-ocid="files.bulk.secondary_button"
           >
             <Move className="h-4 w-4 mr-1" />
             Move
@@ -390,11 +466,17 @@ export default function FileList({
             variant="outline"
             onClick={() => setShowBulkDelete(true)}
             className="text-destructive border-destructive/40 hover:bg-destructive/10"
+            data-ocid="files.bulk.delete_button"
           >
             <Trash2 className="h-4 w-4 mr-1" />
             Delete
           </Button>
-          <Button size="sm" variant="ghost" onClick={clearSelection}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={clearSelection}
+            data-ocid="files.bulk.close_button"
+          >
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -411,36 +493,41 @@ export default function FileList({
         </div>
       )}
 
-      {/* Folders */}
-      {currentFolders.length > 0 && (
-        <div className="space-y-1">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">
-            Folders
-          </h3>
-          {viewMode === "grid" ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {currentFolders.map((folder) => (
-                <FolderCard
-                  key={folder.id}
-                  folder={folder}
-                  isSelected={selectedFolders.includes(folder.id)}
-                  onSelect={() => toggleFolderSelection(folder.id)}
-                  onClick={() => handleFolderClick(folder)}
-                  onRename={() => requestFolderAction(folder, "rename")}
-                  onMove={() => requestFolderAction(folder, "move")}
-                  onDelete={() => requestFolderAction(folder, "delete")}
-                  onProtection={(prot) => {
-                    setProtectionFolderTarget(folder);
-                    setProtectionData(prot);
-                  }}
-                  onProtectionLoaded={(prot) =>
-                    handleFolderProtectionLoaded(folder.id, prot)
-                  }
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-1">
+      {/* ── List-mode table: sticky header + combined folders/files ── */}
+      {viewMode === "list" && hasContent && (
+        <div className="rounded-lg border border-border overflow-hidden">
+          {/* Sticky table header */}
+          <div className="sticky top-0 z-10 bg-card/95 backdrop-blur-sm border-b border-border/60 grid grid-cols-[auto_1fr_160px_100px_90px_auto] items-center px-3 py-2 gap-3">
+            {/* checkbox placeholder */}
+            <span className="w-4" />
+            {/* Name */}
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Name
+            </span>
+            {/* Date */}
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Date
+            </span>
+            {/* Type */}
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Type
+            </span>
+            {/* Size */}
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider text-right">
+              Size
+            </span>
+            {/* actions placeholder */}
+            <span className="w-16" />
+          </div>
+
+          {/* Folders section */}
+          {currentFolders.length > 0 && (
+            <div>
+              <div className="px-3 py-1.5 bg-muted/20 border-b border-border/30">
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Folders
+                </span>
+              </div>
               {currentFolders.map((folder) => (
                 <FolderRow
                   key={folder.id}
@@ -462,52 +549,17 @@ export default function FileList({
               ))}
             </div>
           )}
-        </div>
-      )}
 
-      {/* Files */}
-      {processedFiles.length > 0 && (
-        <div className="space-y-1">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">
-            Files
-          </h3>
-          {viewMode === "grid" ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {paginatedFiles.map((file: FileMetadata) => (
-                <FileCard
-                  key={file.id}
-                  file={file}
-                  isFavorite={favoriteIds.has(file.id)}
-                  isSelected={selectedFiles.includes(file.id)}
-                  onSelect={() => toggleFileSelection(file.id)}
-                  onPreview={() => handlePreviewFile(file)}
-                  onRename={() => setRenameFileTarget(file)}
-                  onMove={() => setMoveFileTarget(file)}
-                  onDelete={() => setDeleteFileTarget(file)}
-                  onToggleFavorite={() =>
-                    handleToggleFavorite(file.id, favoriteIds.has(file.id))
-                  }
-                  onDownload={async () => {
-                    try {
-                      const result = await downloadFile.mutateAsync(file.id);
-                      if (result?.data) {
-                        const blob = new Blob([result.data]);
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = file.name;
-                        a.click();
-                        URL.revokeObjectURL(url);
-                      }
-                    } catch {
-                      /* ignore */
-                    }
-                  }}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-1">
+          {/* Files section */}
+          {processedFiles.length > 0 && (
+            <div>
+              {currentFolders.length > 0 && (
+                <div className="px-3 py-1.5 bg-muted/20 border-b border-border/30">
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Files
+                  </span>
+                </div>
+              )}
               {paginatedFiles.map((file: FileMetadata) => (
                 <FileRow
                   key={file.id}
@@ -543,6 +595,84 @@ export default function FileList({
             </div>
           )}
         </div>
+      )}
+
+      {/* ── Grid mode: separate folders / files sections ── */}
+      {viewMode === "grid" && (
+        <>
+          {/* Folders */}
+          {currentFolders.length > 0 && (
+            <div className="space-y-1">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">
+                Folders
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                {currentFolders.map((folder) => (
+                  <FolderCard
+                    key={folder.id}
+                    folder={folder}
+                    isSelected={selectedFolders.includes(folder.id)}
+                    onSelect={() => toggleFolderSelection(folder.id)}
+                    onClick={() => handleFolderClick(folder)}
+                    onRename={() => requestFolderAction(folder, "rename")}
+                    onMove={() => requestFolderAction(folder, "move")}
+                    onDelete={() => requestFolderAction(folder, "delete")}
+                    onProtection={(prot) => {
+                      setProtectionFolderTarget(folder);
+                      setProtectionData(prot);
+                    }}
+                    onProtectionLoaded={(prot) =>
+                      handleFolderProtectionLoaded(folder.id, prot)
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Files */}
+          {processedFiles.length > 0 && (
+            <div className="space-y-1">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">
+                Files
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                {paginatedFiles.map((file: FileMetadata) => (
+                  <FileCard
+                    key={file.id}
+                    file={file}
+                    isFavorite={favoriteIds.has(file.id)}
+                    isSelected={selectedFiles.includes(file.id)}
+                    onSelect={() => toggleFileSelection(file.id)}
+                    onPreview={() => handlePreviewFile(file)}
+                    onRename={() => setRenameFileTarget(file)}
+                    onMove={() => setMoveFileTarget(file)}
+                    onDelete={() => setDeleteFileTarget(file)}
+                    onToggleFavorite={() =>
+                      handleToggleFavorite(file.id, favoriteIds.has(file.id))
+                    }
+                    onDownload={async () => {
+                      try {
+                        const result = await downloadFile.mutateAsync(file.id);
+                        if (result?.data) {
+                          const blob = new Blob([result.data]);
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = file.name;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Pagination */}
@@ -614,6 +744,8 @@ export default function FileList({
           }}
           fileId={renameFileTarget.id}
           currentName={renameFileTarget.name}
+          fileSize={renameFileTarget.size}
+          folderId={renameFileTarget.folderId ?? undefined}
         />
       )}
 
@@ -684,8 +816,15 @@ export default function FileList({
             if (!open) setDeleteFolderTarget(null);
           }}
           folder={deleteFolderTarget}
-          onConfirm={async (_folderId, _retentionPeriodNs) => {
-            // handled inside the dialog component
+          onConfirm={async (folderId, retentionPeriodNs) => {
+            // retentionPeriodNs is in nanoseconds — convert to days for the mutation
+            const retentionDays =
+              retentionPeriodNs / BigInt(24 * 60 * 60 * 1_000_000_000);
+            await deleteFolderToTrashMutation.mutateAsync({
+              folderId,
+              customRetentionPeriodDays: retentionDays,
+            });
+            setDeleteFolderTarget(null);
           }}
         />
       )}
@@ -798,7 +937,7 @@ function FolderRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer group transition-colors hover:bg-muted/50",
+        "grid grid-cols-[auto_1fr_160px_100px_90px_auto] items-center px-3 py-2.5 gap-3 cursor-pointer group transition-colors hover:bg-muted/40 border-b border-border/40 last:border-b-0",
         isSelected && "bg-primary/10",
       )}
       onClick={onClick}
@@ -806,17 +945,37 @@ function FolderRow({
         if (e.key === "Enter" || e.key === " ") onClick?.();
       }}
     >
+      {/* Checkbox */}
       <Checkbox
         checked={isSelected}
         onCheckedChange={onSelect}
         onClick={(e) => e.stopPropagation()}
         className="shrink-0"
       />
-      <FolderIcon className="h-5 w-5 text-amber-500 shrink-0" />
-      <span className="flex-1 text-sm font-medium truncate">{folder.name}</span>
 
-      {/* Right-side actions: lock icon BEFORE three-dot menu */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Name column */}
+      <div className="flex items-center gap-2 min-w-0">
+        <FolderIcon className="h-4 w-4 text-amber-500 shrink-0" />
+        <span className="text-sm font-medium truncate">{folder.name}</span>
+      </div>
+
+      {/* Date column */}
+      <span className="text-xs text-muted-foreground truncate">
+        {folder.createdAt ? formatTimestamp(folder.createdAt) : "—"}
+      </span>
+
+      {/* Type column */}
+      <span className="text-xs text-muted-foreground">Folder</span>
+
+      {/* Size column */}
+      <span className="text-xs text-muted-foreground text-right">—</span>
+
+      {/* Actions column */}
+      <div
+        className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
         {isProtected && (
           <Button
             variant="ghost"
@@ -1042,24 +1201,42 @@ function FileRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 px-3 py-2.5 rounded-lg group transition-colors hover:bg-muted/50",
+        "grid grid-cols-[auto_1fr_160px_100px_90px_auto] items-center px-3 py-2.5 gap-3 group transition-colors hover:bg-muted/40 border-b border-border/40 last:border-b-0",
         isSelected && "bg-primary/10",
       )}
     >
+      {/* Checkbox */}
       <Checkbox
         checked={isSelected}
         onCheckedChange={onSelect}
         className="shrink-0"
       />
-      <File className="h-5 w-5 text-muted-foreground shrink-0" />
-      <span className="flex-1 text-sm truncate">{file.name}</span>
-      <span className="text-xs text-muted-foreground hidden sm:block w-16 text-right">
+
+      {/* Name column */}
+      <div className="flex items-center gap-2 min-w-0">
+        <File className="h-4 w-4 text-violet-400 shrink-0" />
+        <span className="text-sm truncate">{file.name}</span>
+      </div>
+
+      {/* Date column */}
+      <span className="text-xs text-muted-foreground truncate">
+        {file.uploadedAt ? formatTimestamp(file.uploadedAt) : "—"}
+      </span>
+
+      {/* Type column */}
+      <span>
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
+          {getFileExtension(file.name)}
+        </Badge>
+      </span>
+
+      {/* Size column */}
+      <span className="text-xs text-muted-foreground text-right tabular-nums">
         {formatFileSize(file.size)}
       </span>
-      <Badge variant="outline" className="text-xs hidden md:flex">
-        {getFileExtension(file.name)}
-      </Badge>
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+
+      {/* Actions column */}
+      <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
         <Button
           variant="ghost"
           size="icon"

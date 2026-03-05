@@ -6,6 +6,7 @@ import { useRecentUploads } from "../contexts/RecentUploadsContext";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useUploadFile } from "../hooks/useQueries";
 import CreateFolderDialog from "./CreateFolderDialog";
+import NewDocumentDialog from "./NewDocumentDialog";
 
 interface QuickActionsProps {
   currentFolderId?: string | null;
@@ -14,6 +15,7 @@ interface QuickActionsProps {
 export default function QuickActions({ currentFolderId }: QuickActionsProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
+  const [showNewDocDialog, setShowNewDocDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadFileMutation = useUploadFile();
   const { addRecentUpload } = useRecentUploads();
@@ -60,31 +62,8 @@ export default function QuickActions({ currentFolderId }: QuickActionsProps) {
     setCreateFolderOpen(true);
   };
 
-  const handleCreateDocument = async () => {
-    if (!identity) {
-      toast.error("You must be logged in to create documents");
-      return;
-    }
-
-    const owner = identity.getPrincipal();
-
-    try {
-      const fileName = `New Document ${Date.now()}.txt`;
-      const content = "";
-      const blob = new Blob([content], { type: "text/plain" });
-      const file = new File([blob], fileName, { type: "text/plain" });
-
-      const fileId = await uploadFileMutation.mutateAsync({ file });
-
-      // Add to recent uploads context
-      addRecentUpload(fileId, fileName, BigInt(file.size), owner);
-
-      toast.success("Text document created successfully!");
-    } catch (_error) {
-      toast.error(
-        "Failed to create document. Please check your storage quota.",
-      );
-    }
+  const handleCreateDocument = () => {
+    setShowNewDocDialog(true);
   };
 
   const actions = [
@@ -168,6 +147,12 @@ export default function QuickActions({ currentFolderId }: QuickActionsProps) {
         open={createFolderOpen}
         onOpenChange={setCreateFolderOpen}
         parentFolderId={currentFolderId}
+      />
+
+      <NewDocumentDialog
+        open={showNewDocDialog}
+        onOpenChange={setShowNewDocDialog}
+        currentFolderId={currentFolderId}
       />
     </>
   );

@@ -1,15 +1,17 @@
 import { Button } from "@/components/ui/button";
-import { ChevronRight, FolderPlus, Home, Upload } from "lucide-react";
+import { ChevronRight, FileText, FolderPlus, Home, Upload } from "lucide-react";
 import React, { useState } from "react";
 import CreateFolderDialog from "../components/CreateFolderDialog";
 import FileList from "../components/FileList";
 import FileUpload from "../components/FileUpload";
 import FolderBreadcrumbs from "../components/FolderBreadcrumbs";
+import NewDocumentDialog from "../components/NewDocumentDialog";
 
 export default function Dashboard() {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
+  const [showNewDocument, setShowNewDocument] = useState(false);
 
   return (
     <div className="flex flex-col h-full p-6 gap-4">
@@ -36,13 +38,22 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-2">
           <Button
-            variant="outline"
             size="sm"
             onClick={() => setShowCreateFolder(true)}
-            className="gap-2"
+            className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white border-0"
+            data-ocid="dashboard.new_folder.open_modal_button"
           >
             <FolderPlus className="h-4 w-4" />
             New Folder
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setShowNewDocument(true)}
+            className="gap-2 bg-cyan-500 hover:bg-cyan-600 text-white border-0"
+            data-ocid="dashboard.new_document.open_modal_button"
+          >
+            <FileText className="h-4 w-4" />
+            New Document
           </Button>
           <Button
             size="sm"
@@ -75,6 +86,12 @@ export default function Dashboard() {
         open={showCreateFolder}
         onOpenChange={setShowCreateFolder}
         parentFolderId={currentFolderId}
+      />
+
+      <NewDocumentDialog
+        open={showNewDocument}
+        onOpenChange={setShowNewDocument}
+        currentFolderId={currentFolderId}
       />
     </div>
   );
