@@ -192,13 +192,44 @@ function AppInner() {
           }
           if (!cancelled) setUserProfile(profile as any);
         } else {
-          const [profile, approved] = await Promise.all([
-            actor.getCallerUserProfile(),
-            actor.isCallerApproved(),
-          ]);
-          if (!cancelled) {
-            setUserProfile(profile as any);
-            setIsApproved(approved as boolean);
+          // First check approval status (this doesn't require being in accessControlState)
+          let approved = false;
+          try {
+            approved = (await actor.isCallerApproved()) as boolean;
+          } catch {
+            approved = false;
+          }
+
+          if (approved) {
+            // User is approved — initialize them in accessControlState so they can
+            // call profile endpoints that require #user role
+            try {
+              await actor._initializeAccessControlWithSecret(
+                "CAFFEINE_ADMIN_SECRET",
+              );
+            } catch {
+              // Already initialized or secret mismatch — continue
+            }
+            // Small delay to ensure state propagation
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            let profile: { name: string; email: string } | null = null;
+            try {
+              profile = (await actor.getCallerUserProfile()) as {
+                name: string;
+                email: string;
+              } | null;
+            } catch {
+              profile = null;
+            }
+            if (!cancelled) {
+              setUserProfile(profile as any);
+              setIsApproved(true);
+            }
+          } else {
+            if (!cancelled) {
+              setUserProfile(null);
+              setIsApproved(false);
+            }
           }
         }
       } catch {

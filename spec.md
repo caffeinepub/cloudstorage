@@ -1,14 +1,36 @@
-# Specification
+# CloudStorage
 
-## Summary
-**Goal:** Reorganize the Admin Dashboard by introducing three tabs (User Management, Storage Management, Recent Activity) below the existing stat cards, replacing the current stacked layout.
+## Current State
 
-**Planned changes:**
-- Remove the stacked User Storage Management and Recent Activity panels from the main non-tabbed view in `AdminDashboard.tsx`
-- Add three tabs below the stat cards: **User Management**, **Storage Management**, and **Recent Activity**
-- **User Management tab**: contains Pending Registrations section (approve/reject) and All Registrations table (Principal ID, Name, Role, Status, Actions); Reject button hidden for the admin's own row
-- **Storage Management tab**: displays User Storage Management table (User, Used, Quota) with an editable numeric input per row pre-filled with the current quota (default 953.67 MB); saving calls the backend to persist the new quota
-- **Recent Activity tab**: shows only login activity entries (user identifier + timestamp); fetched via a new admin-only backend query; displays loading and empty states
-- Backend: record a login activity entry in the ActivityLog on successful user authentication; add an admin-only query to retrieve all login activity entries
+- Approval-based registration: new users call `requestApproval()` which adds them to `approvalState.approvalStatus` (the user-approval module's map). They are stuck on WaitingApproval until the admin approves them.
+- `listApprovals` is a `query` function that calls `AccessControl.hasPermission(accessControlState, caller, #admin)` before returning data.
+- `AccessControl.hasPermission` → `getUserRole` → `Runtime.trap("User is not registered")` if the caller is not present in `accessControlState.userRoles`.
+- `_initializeAccessControlWithSecret` registers the admin in `accessControlState.userRoles`, but if it hasn't run yet (e.g. fresh canister), `listApprovals` traps and the frontend silently catches the error and returns `[]`.
+- `getRegisteredUsersWithQuota` iterates over `userProfiles` (only populated by `saveCallerUserProfile`). Pending users never reach ProfileSetup (they're on WaitingApproval), so they never appear in `userProfiles` → Storage Management shows no users or fails.
+- `WaitingApproval.tsx` auto-calls `requestApproval()` but does NOT collect or save name/email — so pending users have no profile data visible in admin.
 
-**User-visible outcome:** Admins see a cleaner dashboard where user management, storage quota editing, and login activity are each in their own tab, and login events are tracked and displayed in the Recent Activity tab.
+## Requested Changes (Diff)
+
+### Add
+- A new backend function `requestApprovalWithProfile(name: Text, email: Text)` that calls `UserApproval.requestApproval` AND stores the user's name/email in `userProfiles` atomically.
+- WaitingApproval page updated to collect name and email from the user before submitting the approval request (simple form shown before auto-submit).
+
+### Modify
+- `listApprovals` backend function: replace `AccessControl.hasPermission` trap with a safe check (`isAdmin`) that returns false instead of trapping for unregistered callers. Use `shared` instead of `query` so it works correctly even when called after the init update.
+- `getRegisteredUsersWithQuota`: merge data from both `userProfiles` AND `approvalState.approvalStatus` so all principals who registered (even pending ones) appear in the list. For principals without a profile, show 0 used / default quota.
+- `useListApprovals` in useQueries.ts: propagate errors instead of silently swallowing them (add better error handling/logging).
+- `WaitingApproval.tsx`: show a name/email form for first-time visitors; on submit call `requestApprovalWithProfile`; on subsequent loads (already requested) skip the form.
+
+### Remove
+- Nothing removed
+
+## Implementation Plan
+
+1. Backend (`main.mo`):
+   - Add `requestApprovalWithProfile(name: Text, email: Text)` public shared function
+   - Make `listApprovals` a `shared` (update) call instead of `query`, or keep it `query` but use a safe admin check that doesn't trap unregistered callers
+   - Fix `getRegisteredUsersWithQuota` to union `userProfiles` and `approvalState.approvalStatus` principals
+
+2. Frontend:
+   - Add `useRequestApprovalWithProfile` hook in useQueries.ts
+   - Update `WaitingApproval.tsx` to show a name/email form; submit using `requestApprovalWithProfile`; detect if already pending (localStorage flag) to skip the form

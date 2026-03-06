@@ -22,6 +22,7 @@ import {
   CheckCircle,
   Clock,
   LogIn,
+  RefreshCw,
   Shield,
   UserCheck,
   Users,
@@ -46,7 +47,11 @@ const ADMIN_PRINCIPAL =
 export default function AdminDashboard() {
   const { identity } = useInternetIdentity();
   const { data: isAdminFromBackend, isLoading } = useIsCallerAdmin();
-  const { data: approvals, isLoading: approvalsLoading } = useListApprovals();
+  const {
+    data: approvals,
+    isLoading: approvalsLoading,
+    refetch: refetchApprovals,
+  } = useListApprovals();
   const { data: adminTableData, isLoading: tableDataLoading } =
     useGetAdministrationsTableData();
   const { data: loginLogs, isLoading: loginLogsLoading } =
@@ -234,18 +239,32 @@ export default function AdminDashboard() {
           {/* Pending Registrations */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-amber-500" />
-                Pending Registrations
-                {pendingApprovals.length > 0 && (
-                  <Badge
-                    variant="secondary"
-                    className="ml-2 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-                  >
-                    {pendingApprovals.length}
-                  </Badge>
-                )}
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-amber-500" />
+                  Pending Registrations
+                  {pendingApprovals.length > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-2 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                    >
+                      {pendingApprovals.length}
+                    </Badge>
+                  )}
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => refetchApprovals()}
+                  disabled={approvalsLoading}
+                  className="h-8 w-8 p-0"
+                  title="Refresh"
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 ${approvalsLoading ? "animate-spin" : ""}`}
+                  />
+                </Button>
+              </div>
               <CardDescription>
                 Review and approve or reject new user registration requests
               </CardDescription>

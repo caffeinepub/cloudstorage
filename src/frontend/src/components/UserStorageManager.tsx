@@ -16,9 +16,11 @@ import type { Principal } from "@icp-sdk/core/principal";
 import { AlertTriangle, HardDrive, Loader2, Save, Users } from "lucide-react";
 import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { ApprovalStatus } from "../backend";
 import {
   useGetAdministrationsTableData,
   useGetRegisteredUsersWithQuota,
+  useListApprovals,
   useSetUserQuotaInBytes,
 } from "../hooks/useQueries";
 
@@ -191,14 +193,22 @@ function UserRow({
   );
 }
 
+const DEFAULT_QUOTA_BYTES = BigInt(1_073_741_824); // 1 GB
+
 export default function UserStorageManager() {
   const {
     data: usersWithQuota,
     isLoading: quotaLoading,
     error: quotaError,
+    refetch: refetchQuota,
   } = useGetRegisteredUsersWithQuota();
   const { data: adminTableData, isLoading: namesLoading } =
     useGetAdministrationsTableData();
+  const {
+    data: approvals,
+    isLoading: approvalsLoading,
+    refetch: refetchApprovals,
+  } = useListApprovals();
   const setQuotaMutation = useSetUserQuotaInBytes();
 
   // Confirmation dialog state
@@ -223,7 +233,42 @@ export default function UserStorageManager() {
     return map;
   }, [adminTableData]);
 
-  const isLoading = quotaLoading || namesLoading;
+  // Merge quota data with approvals to show ALL users (including pending ones)
+  const mergedUsersWithQuota = React.useMemo((): Array<
+    [Principal, bigint, bigint]
+  > => {
+    // Start with existing quota data
+    const quotaMap = new Map<string, [Principal, bigint, bigint]>();
+    if (usersWithQuota) {
+      for (const entry of usersWithQuota) {
+        quotaMap.set(entry[0].toString(), entry);
+      }
+    }
+    // Add any approval-state users not already in the quota map
+    if (approvals) {
+      for (const approval of approvals) {
+        const key = approval.principal.toString();
+        if (!quotaMap.has(key)) {
+          // Not in profile map yet — show with 0 used / default quota
+          quotaMap.set(key, [approval.principal, 0n, DEFAULT_QUOTA_BYTES]);
+        }
+      }
+    }
+    return Array.from(quotaMap.values());
+  }, [usersWithQuota, approvals]);
+
+  // Build approval status lookup
+  const approvalStatusMap = React.useMemo(() => {
+    const map = new Map<string, ApprovalStatus>();
+    if (approvals) {
+      for (const a of approvals) {
+        map.set(a.principal.toString(), a.status);
+      }
+    }
+    return map;
+  }, [approvals]);
+
+  const isLoading = quotaLoading || namesLoading || approvalsLoading;
 
   const handleSaveRequest = (
     principal: Principal,
@@ -292,18 +337,28 @@ export default function UserStorageManager() {
     );
   }
 
-  if (quotaError) {
+  if (quotaError && (!approvals || approvals.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <AlertTriangle className="w-10 h-10 text-destructive mb-3" />
         <p className="text-sm text-muted-foreground">
           Failed to load user storage data.
         </p>
+        <button
+          type="button"
+          onClick={() => {
+            refetchQuota();
+            refetchApprovals();
+          }}
+          className="mt-3 text-xs text-primary underline"
+        >
+          Retry
+        </button>
       </div>
     );
   }
 
-  if (!usersWithQuota || usersWithQuota.length === 0) {
+  if (mergedUsersWithQuota.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <Users className="w-10 h-10 text-muted-foreground mb-3" />
@@ -316,11 +371,14 @@ export default function UserStorageManager() {
   }
 
   // Summary stats
-  const totalAllocated = usersWithQuota.reduce(
+  const totalAllocated = mergedUsersWithQuota.reduce(
     (sum, [, , quota]) => sum + quota,
     0n,
   );
-  const totalUsed = usersWithQuota.reduce((sum, [, used]) => sum + used, 0n);
+  const totalUsed = mergedUsersWithQuota.reduce(
+    (sum, [, used]) => sum + used,
+    0n,
+  );
 
   return (
     <div className="space-y-4">
@@ -329,7 +387,7 @@ export default function UserStorageManager() {
         <div>
           <p className="text-xs text-muted-foreground">Total Users</p>
           <p className="text-lg font-semibold text-foreground">
-            {usersWithQuota.length}
+            {usersWithQuota?.length ?? 0}
           </p>
         </div>
         <div>
@@ -357,14 +415,27 @@ export default function UserStorageManager() {
 
       {/* User rows */}
       <div className="space-y-2">
-        {usersWithQuota.map(([principal, bytesUsed, quotaBytes]) => {
+        {mergedUsersWithQuota.map(([principal, bytesUsed, quotaBytes]) => {
           const principalStr = principal.toString();
           const displayName = nameMap.get(principalStr) || "";
+          const approvalStatus = approvalStatusMap.get(principalStr);
+          const statusLabel =
+            approvalStatus === ApprovalStatus.pending
+              ? " (Pending)"
+              : approvalStatus === ApprovalStatus.rejected
+                ? " (Rejected)"
+                : "";
           return (
             <UserRow
               key={principalStr}
               principal={principal}
-              displayName={displayName}
+              displayName={
+                displayName
+                  ? `${displayName}${statusLabel}`
+                  : statusLabel
+                    ? `Unknown${statusLabel}`
+                    : ""
+              }
               bytesUsed={bytesUsed}
               quotaBytes={quotaBytes}
               onSave={handleSaveRequest}

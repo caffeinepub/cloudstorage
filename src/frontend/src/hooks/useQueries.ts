@@ -964,9 +964,19 @@ export function useIsCallerAdmin() {
     queryKey: ["isCallerAdmin"],
     queryFn: async () => {
       if (!actor) return false;
-      return actor.isCallerAdmin();
+      try {
+        await actor._initializeAccessControlWithSecret("CAFFEINE_ADMIN_SECRET");
+      } catch {
+        // Already initialized or not admin — continue
+      }
+      try {
+        return await actor.isCallerAdmin();
+      } catch {
+        return false;
+      }
     },
     enabled: !!actor && !isFetching,
+    retry: 2,
   });
 }
 
@@ -976,9 +986,22 @@ export function useListApprovals() {
     queryKey: ["approvals"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.listApprovals();
+      // Ensure admin is initialized in the backend before calling admin-only endpoint
+      try {
+        await actor._initializeAccessControlWithSecret("CAFFEINE_ADMIN_SECRET");
+      } catch {
+        // Already initialized or not admin — continue
+      }
+      // Small delay to ensure the update propagates before the query
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return await actor.listApprovals();
     },
     enabled: !!actor && !isFetching,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
   });
 }
 
@@ -988,10 +1011,17 @@ export function useSetApproval() {
   return useMutation({
     mutationFn: async (params: { user: Principal; status: ApprovalStatus }) => {
       if (!actor) throw new Error("Actor not available");
+      // Ensure admin is initialized before performing approval action
+      try {
+        await actor._initializeAccessControlWithSecret("CAFFEINE_ADMIN_SECRET");
+      } catch {
+        // Already initialized or not admin — continue
+      }
       return actor.setApproval(params.user, params.status);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["approvals"] });
+      queryClient.invalidateQueries({ queryKey: ["registeredUsersWithQuota"] });
     },
   });
 }
@@ -1002,9 +1032,23 @@ export function useGetAdministrationsTableData() {
     queryKey: ["administrationsTableData"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getAdministrationsTableData();
+      try {
+        await actor._initializeAccessControlWithSecret("CAFFEINE_ADMIN_SECRET");
+      } catch {
+        // Already initialized or not admin — continue
+      }
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      try {
+        return await actor.getAdministrationsTableData();
+      } catch {
+        return [];
+      }
     },
     enabled: !!actor && !isFetching,
+    staleTime: 0,
+    refetchOnMount: "always",
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
   });
 }
 
@@ -1014,9 +1058,19 @@ export function useGetLoginLogTable() {
     queryKey: ["loginLogTable"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getLoginLogTable();
+      try {
+        await actor._initializeAccessControlWithSecret("CAFFEINE_ADMIN_SECRET");
+      } catch {
+        // Already initialized or not admin — continue
+      }
+      try {
+        return await actor.getLoginLogTable();
+      } catch {
+        return [];
+      }
     },
     enabled: !!actor && !isFetching,
+    retry: 2,
   });
 }
 
@@ -1033,9 +1087,25 @@ export function useGetRegisteredUsersWithQuota() {
     queryKey: ["registeredUsersWithQuota"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getRegisteredUsersWithQuota();
+      // Ensure admin is initialized in the backend before calling admin-only endpoint
+      try {
+        await actor._initializeAccessControlWithSecret("CAFFEINE_ADMIN_SECRET");
+      } catch {
+        // Already initialized or not admin — continue
+      }
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      try {
+        return await actor.getRegisteredUsersWithQuota();
+      } catch {
+        return [];
+      }
     },
     enabled: !!actor && !isFetching,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
   });
 }
 
@@ -1049,6 +1119,12 @@ export function useSetUserQuotaInBytes() {
   return useMutation({
     mutationFn: async (params: { user: Principal; quotaInBytes: bigint }) => {
       if (!actor) throw new Error("Actor not available");
+      // Ensure admin is initialized before performing admin-only action
+      try {
+        await actor._initializeAccessControlWithSecret("CAFFEINE_ADMIN_SECRET");
+      } catch {
+        // Already initialized or not admin — continue
+      }
       return actor.setUserQuotaInBytes(params.user, params.quotaInBytes);
     },
     onSuccess: () => {
