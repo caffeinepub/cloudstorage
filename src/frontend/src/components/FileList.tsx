@@ -38,11 +38,14 @@ import {
   useDeleteFile,
   useDeleteFolderToTrash,
   useDownloadFile,
+  useFavoriteFolder,
+  useGetFavoriteFolders,
   useGetFavorites,
   useGetFolderProtectionStatus,
   useListFiles,
   useListFolders,
   useRemoveFavorite,
+  useUnfavoriteFolder,
 } from "../hooks/useQueries";
 import BulkDeleteDialog from "./BulkDeleteDialog";
 import BulkShareDialog from "./BulkShareDialog";
@@ -156,13 +159,34 @@ export default function FileList({
   const { data: folders = [], isLoading: foldersLoading } = useListFolders();
   const { data: files = [], isLoading: filesLoading } = useListFiles();
   const { data: favorites = [] } = useGetFavorites();
+  const { data: favoriteFolders = [] } = useGetFavoriteFolders();
   const downloadFile = useDownloadFile();
   const addFavoriteMutation = useAddFavorite();
   const removeFavoriteMutation = useRemoveFavorite();
+  const favoriteFolderMutation = useFavoriteFolder();
+  const unfavoriteFolderMutation = useUnfavoriteFolder();
   const deleteFileMutation = useDeleteFile();
   const deleteFolderToTrashMutation = useDeleteFolderToTrash();
 
   const favoriteIds = new Set(favorites.map((f) => f.fileId));
+  const favoriteFolderIds = new Set(favoriteFolders.map((f) => f.id));
+
+  const handleToggleFolderFavorite = async (
+    folderId: string,
+    isFav: boolean,
+  ) => {
+    try {
+      if (isFav) {
+        await unfavoriteFolderMutation.mutateAsync(folderId);
+        toast.success("Removed from favorites");
+      } else {
+        await favoriteFolderMutation.mutateAsync(folderId);
+        toast.success("Added to favorites");
+      }
+    } catch {
+      toast.error("Failed to update favorites");
+    }
+  };
 
   // Search / filter / sort hooks
   const { searchQuery, setSearchQuery, searchFiles } = useFileSearch();
@@ -533,11 +557,18 @@ export default function FileList({
                   key={folder.id}
                   folder={folder}
                   isSelected={selectedFolders.includes(folder.id)}
+                  isFavorite={favoriteFolderIds.has(folder.id)}
                   onSelect={() => toggleFolderSelection(folder.id)}
                   onClick={() => handleFolderClick(folder)}
                   onRename={() => requestFolderAction(folder, "rename")}
                   onMove={() => requestFolderAction(folder, "move")}
                   onDelete={() => requestFolderAction(folder, "delete")}
+                  onToggleFavorite={() =>
+                    handleToggleFolderFavorite(
+                      folder.id,
+                      favoriteFolderIds.has(folder.id),
+                    )
+                  }
                   onProtection={(prot) => {
                     setProtectionFolderTarget(folder);
                     setProtectionData(prot);
@@ -912,6 +943,8 @@ interface FolderRowProps {
   onDelete: () => void;
   onProtection: (prot: FolderProtection | null | undefined) => void;
   onProtectionLoaded: (prot: FolderProtection | null | undefined) => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 }
 
 function FolderRow({
@@ -924,6 +957,8 @@ function FolderRow({
   onDelete,
   onProtection,
   onProtectionLoaded,
+  isFavorite = false,
+  onToggleFavorite,
 }: FolderRowProps) {
   const { data: protection } = useGetFolderProtectionStatus(folder.id);
 
@@ -960,22 +995,43 @@ function FolderRow({
       </div>
 
       {/* Date column */}
-      <span className="text-xs text-muted-foreground truncate">
+      <span className="text-xs text-muted-foreground truncate text-left">
         {folder.createdAt ? formatTimestamp(folder.createdAt) : "—"}
       </span>
 
       {/* Type column */}
-      <span className="text-xs text-muted-foreground">Folder</span>
+      <span className="text-xs text-muted-foreground text-left">Folder</span>
 
       {/* Size column */}
-      <span className="text-xs text-muted-foreground text-right">—</span>
+      <span className="text-xs text-muted-foreground text-left">—</span>
 
       {/* Actions column */}
       <div
-        className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity"
+        className="flex items-center gap-1 justify-end"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
       >
+        {onToggleFavorite && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite();
+            }}
+            title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+          >
+            <Star
+              className={cn(
+                "h-4 w-4",
+                isFavorite
+                  ? "fill-amber-400 text-amber-400"
+                  : "text-muted-foreground",
+              )}
+            />
+          </Button>
+        )}
         {isProtected && (
           <Button
             variant="ghost"
@@ -1236,7 +1292,7 @@ function FileRow({
       </span>
 
       {/* Actions column */}
-      <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-1 justify-end">
         <Button
           variant="ghost"
           size="icon"
